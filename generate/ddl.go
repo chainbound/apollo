@@ -8,8 +8,9 @@ import (
 )
 
 type Column struct {
-	Name string
-	Type string
+	Name  string
+	Type  string
+	Final bool // utility flag for setting types
 }
 
 type Type string
@@ -65,12 +66,19 @@ func AddColumnTypesFromABI(methodName string, abi abi.ABI, columns []*Column) []
 			if i.Name == col.Name {
 				col.Type = ConvertType(Type(i.Type.String()))
 			}
+			col.Final = true
 		}
 
 		for _, o := range method.Outputs {
 			if o.Name == col.Name {
 				col.Type = ConvertType(Type(o.Type.String()))
+				col.Final = true
 			}
+		}
+
+		if len(method.Outputs) == 1 && !col.Final {
+			col.Type = ConvertType(Type(method.Outputs[0].Type.String()))
+			col.Final = true
 		}
 	}
 
@@ -80,16 +88,19 @@ func AddColumnTypesFromABI(methodName string, abi abi.ABI, columns []*Column) []
 func GenerateColumns(schema ContractSchemaV1) ([]*Column, error) {
 	columns := []*Column{
 		{
-			Name: "timestamp",
-			Type: ConvertType(Uint256),
+			Name:  "timestamp",
+			Type:  ConvertType(Uint256),
+			Final: true,
 		},
 		{
-			Name: "chain",
-			Type: ConvertType(String),
+			Name:  "chain",
+			Type:  ConvertType(String),
+			Final: true,
 		},
 		{
-			Name: "contract",
-			Type: ConvertType(Address),
+			Name:  "contract",
+			Type:  ConvertType(Address),
+			Final: true,
 		},
 	}
 
