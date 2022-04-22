@@ -21,6 +21,7 @@ func (s SchemaV1) ContractSchemas() []ContractSchemaV1 {
 	return s.Chains.ContractSchemas()
 }
 
+// Map chainName => contractSchemas
 type Chains map[string]ContractSchemasV1
 
 func (c Chains) ContractSchemas() []ContractSchemaV1 {

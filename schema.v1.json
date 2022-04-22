@@ -11,6 +11,17 @@
           ]
         }
       }
+    },
+    "0xAA970A61A04b1cA14834A43f5dE4533eBDDB5CC8": {
+      "name": "usdt",
+      "abi": "erc20.abi.json",
+      "methods": {
+        "totalSupply": {
+          "outputs": [
+            "supply"
+          ]
+        }
+      }
     }
   }
 }

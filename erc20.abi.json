@@ -42,7 +42,7 @@
     "name": "totalSupply",
     "outputs": [
       {
-        "name": "",
+        "name": "supply",
         "type": "uint256"
       }
     ],
