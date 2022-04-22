@@ -2,7 +2,10 @@ module github.com/XMonetae-DeFi/chainreader
 
 go 1.18
 
-require github.com/ethereum/go-ethereum v1.10.17
+require (
+	github.com/ethereum/go-ethereum v1.10.17
+	github.com/lib/pq v1.10.5
+)
 
 require (
 	github.com/btcsuite/btcd/btcec/v2 v2.1.2 // indirect
