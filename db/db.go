@@ -50,5 +50,17 @@ func (db *DB) Ping(ctx context.Context) error {
 }
 
 func (db *DB) isConnected() bool {
-	return db.pdb != nil
+	if db.pdb == nil {
+		return true
+	} else {
+		return db.pdb.Ping() == nil
+	}
+}
+
+func (db DB) CreateTable(ctx context.Context, ddl string) error {
+	_, err := db.pdb.ExecContext(ctx, ddl)
+	if err != nil {
+		return err
+	}
+	return nil
 }

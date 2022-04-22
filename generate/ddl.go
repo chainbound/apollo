@@ -10,7 +10,7 @@ import (
 type Column struct {
 	Name  string
 	Type  string
-	Final bool // utility flag for setting types
+	Final bool // utility flag for setting types, finalized when type is known
 }
 
 type Type string
@@ -76,6 +76,9 @@ func AddColumnTypesFromABI(methodName string, abi abi.ABI, columns []*Column) []
 			}
 		}
 
+		// Some ABI outputs have no name (when it's the only return value)
+		// so this is what we check here. Any col that's not finalized is
+		// the one that we need to link to the ABI return value
 		if len(method.Outputs) == 1 && !col.Final {
 			col.Type = ConvertType(Type(method.Outputs[0].Type.String()))
 			col.Final = true
