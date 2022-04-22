@@ -1,0 +1,16 @@
+{
+  "arbitrum": {
+    "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8": {
+      "name": "usdc",
+      "abi": "erc20.abi.json",
+      "methods": {
+        "balanceOf": {
+          "_owner": "0xe1Dd30fecAb8a63105F2C035B084BfC6Ca5B1493",
+          "outputs": [
+            "balance"
+          ]
+        }
+      }
+    }
+  }
+}
