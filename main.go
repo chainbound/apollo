@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/XMonetae-DeFi/chainreader/generate"
+	"github.com/XMonetae-DeFi/apollo/generate"
 )
 
 func main() {

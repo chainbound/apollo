@@ -1,4 +1,4 @@
-module github.com/XMonetae-DeFi/chainreader
+module github.com/XMonetae-DeFi/apollo
 
 go 1.18
 

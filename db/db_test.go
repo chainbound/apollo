@@ -8,7 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/XMonetae-DeFi/chainreader/generate"
+	"github.com/XMonetae-DeFi/apollo/generate"
+
 	"github.com/ethereum/go-ethereum/accounts/abi"
 )
 
