@@ -2,10 +2,7 @@ package generate
 
 import (
 	"fmt"
-	"os"
 	"testing"
-
-	"github.com/ethereum/go-ethereum/accounts/abi"
 )
 
 func TestGenerateColumns(t *testing.T) {
@@ -16,7 +13,7 @@ func TestGenerateColumns(t *testing.T) {
 
 	var cols []*Column
 	for _, s := range schema.Contracts {
-		c, err := GenerateColumns(s)
+		c, err := GenerateColumns(*s)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -33,18 +30,8 @@ func TestGenerateDDL(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	file, err := os.Open("../erc20.abi.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	abi, err := abi.JSON(file)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	for _, s := range schema.Contracts {
-		ddl, err := GenerateDDL(abi, s)
+		ddl, err := GenerateDDL(*s)
 		if err != nil {
 			t.Fatal(err)
 		}

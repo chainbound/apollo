@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	ErrNotConnected = errors.New("not connected to database, use Connect()")
+	ErrNotConnected = errors.New("not connected to database, use Connect() or check if DB is accessible")
 )
 
 type DbSettings struct {
@@ -49,9 +49,9 @@ func (db *DB) Ping(ctx context.Context) error {
 	return db.pdb.PingContext(ctx)
 }
 
-func (db *DB) isConnected() bool {
+func (db *DB) IsConnected() bool {
 	if db.pdb == nil {
-		return true
+		return false
 	} else {
 		return db.pdb.Ping() == nil
 	}

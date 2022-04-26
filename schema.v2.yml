@@ -14,8 +14,14 @@ contracts:
           _owner: 0xe1Dd30fecAb8a63105F2C035B084BfC6Ca5B1493
         outputs:
           - balance
+      - name: totalSupply
+        # No args in this case
+        outputs:
+          # the totalSupply() method does not have named outputs, so
+          # this will dynamically name the output parameter 'supply'
+          - supply
 
-  - address: 0xAA970A61A04b1cA14834A43f5dE4533eBDDB5CC8
+  - address: 0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9
     name: usdt
     abi: erc20.abi.json
     methods:

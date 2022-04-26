@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"gopkg.in/yaml.v2"
 )
@@ -20,21 +21,21 @@ const (
 	Fantom    Chain = "fantom"
 )
 
-// TODO: interface
 type SchemaV1 struct {
 	Chains Chains
 }
 
 type SchemaV2 struct {
-	Chain     Chain              `yaml:"chain"`
-	Contracts []ContractSchemaV2 `yaml:"contracts"`
+	Chain     Chain               `yaml:"chain"`
+	Contracts []*ContractSchemaV2 `yaml:"contracts"`
 }
 
 type ContractSchemaV2 struct {
-	Address_ common.Address `yaml:"address"`
+	Address  common.Address `yaml:"address"`
 	Name_    string         `yaml:"name"`
 	AbiPath  string         `yaml:"abi"`
 	Methods_ []MethodV2     `yaml:"methods"`
+	Abi      abi.ABI        `yaml:"-"`
 }
 
 func (cs ContractSchemaV2) Name() string {
@@ -158,8 +159,25 @@ func ParseV2(path string) (*SchemaV2, error) {
 	if err != nil {
 		return nil, fmt.Errorf("ParseV2: reading file: %w", err)
 	}
+
 	if err = yaml.Unmarshal(file, &schema); err != nil {
 		return nil, fmt.Errorf("ParseV2: parsing yaml: %w", err)
+	}
+
+	fmt.Printf("%+v\n", schema)
+	for _, contract := range schema.Contracts {
+		// TODO: path should be steady
+		f, err := os.Open("../" + contract.AbiPath)
+		if err != nil {
+			return nil, fmt.Errorf("ParseV2: reading ABI file: %w", err)
+		}
+
+		abi, err := abi.JSON(f)
+		if err != nil {
+			return nil, fmt.Errorf("ParseV2: parsing ABI")
+		}
+
+		contract.Abi = abi
 	}
 
 	return &schema, nil

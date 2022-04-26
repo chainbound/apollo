@@ -13,14 +13,15 @@ type Column struct {
 	Final bool // utility flag for setting types, finalized when type is known
 }
 
-func GenerateDDL(abi abi.ABI, schema ContractSchemaV2) (string, error) {
+func GenerateDDL(schema ContractSchemaV2) (string, error) {
 	columns, err := GenerateColumns(schema)
 	if err != nil {
 		return "", err
 	}
 
 	for _, m := range schema.Methods() {
-		columns = AddColumnTypesFromABI(m.Name(), abi, columns)
+		// columns = AddColumnTypesFromABI(m.Name(), schema.Abi, columns)
+		columns = AddColumnTypesFromABI(m.Name(), abi.ABI{}, columns)
 	}
 
 	ddl := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (\n", schema.Name())
@@ -43,14 +44,14 @@ func AddColumnTypesFromABI(methodName string, abi abi.ABI, columns []*Column) []
 		method := abi.Methods[methodName]
 		for _, i := range method.Inputs {
 			if i.Name == col.Name {
-				col.Type = ConvertType(Type(i.Type.String()))
+				col.Type = ABIToSQLType(ABIType(i.Type.String()))
 			}
 			col.Final = true
 		}
 
 		for _, o := range method.Outputs {
 			if o.Name == col.Name {
-				col.Type = ConvertType(Type(o.Type.String()))
+				col.Type = ABIToSQLType(ABIType(o.Type.String()))
 				col.Final = true
 			}
 		}
@@ -59,7 +60,7 @@ func AddColumnTypesFromABI(methodName string, abi abi.ABI, columns []*Column) []
 		// so this is what we check here. Any col that's not finalized is
 		// the one that we need to link to the ABI return value
 		if len(method.Outputs) == 1 && !col.Final {
-			col.Type = ConvertType(Type(method.Outputs[0].Type.String()))
+			col.Type = ABIToSQLType(ABIType(method.Outputs[0].Type.String()))
 			col.Final = true
 		}
 	}
@@ -71,17 +72,17 @@ func GenerateColumns(cs ContractSchemaV2) ([]*Column, error) {
 	columns := []*Column{
 		{
 			Name:  "timestamp",
-			Type:  ConvertType(Uint256),
+			Type:  ABIToSQLType(Uint256),
 			Final: true,
 		},
 		{
 			Name:  "chain",
-			Type:  ConvertType(String),
+			Type:  ABIToSQLType(String),
 			Final: true,
 		},
 		{
 			Name:  "contract",
-			Type:  ConvertType(Address),
+			Type:  ABIToSQLType(Address),
 			Final: true,
 		},
 	}

@@ -30,7 +30,7 @@ func newDB() *DB {
 
 func TestConnect(t *testing.T) {
 	db := newDB()
-	if !db.isConnected() {
+	if !db.IsConnected() {
 		t.Fatal("not connected")
 	}
 }
