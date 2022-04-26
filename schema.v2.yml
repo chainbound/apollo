@@ -31,3 +31,13 @@ contracts:
           # the totalSupply() method does not have named outputs, so
           # this will dynamically name the output parameter 'supply'
           - supply
+
+  - address: 0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612
+    name: eth_chainlink_feed
+    abi: feed.abi.json
+    methods:
+      - name: latestRoundData
+        outputs:
+          - answer
+          - roundId
+          - updatedAt

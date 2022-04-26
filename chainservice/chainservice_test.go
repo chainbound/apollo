@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"math/big"
 	"testing"
 	"time"
 
@@ -53,13 +54,15 @@ func TestExecCallContracts(t *testing.T) {
 
 	service := newClient()
 
-	chanMap := make(chan CallResult)
+	blocks := make(chan *big.Int)
 
-	for _, s := range schema.Contracts {
-		service.ExecContractCalls(context.Background(), s, chanMap, nil)
-	}
+	res := service.ExecContractCalls(context.Background(), schema, blocks)
 
-	for res := range chanMap {
+	// Latest block, then close
+	blocks <- nil
+	close(blocks)
+
+	for res := range res {
 		fmt.Println(res)
 	}
 }

@@ -57,49 +57,60 @@ type CallResult struct {
 	Outputs      map[string]any
 }
 
-// ExecContractCalls calls all the methods for the given ContractSchema concurrently.
-func (c *ChainService) ExecContractCalls(ctx context.Context, schema *generate.ContractSchemaV2, resChan chan<- CallResult, blockNumber *big.Int) {
-	for _, method := range schema.Methods() {
-		go func(method generate.MethodV2) {
-			fmt.Println("Calling method", method.Name())
-			msg, err := generate.BuildCallMsg(schema.Address, method, schema.Abi)
-			if err != nil {
-				resChan <- CallResult{
-					Err: err,
+// ExecContractCalls calls all the methods for the given ContractSchema concurrently. All results will be sent on the resChan,
+// and they can be ordered by contract with CallResult.ContractName. If there is an error, it will be in CallResult.Err,
+// and the rest of the properties will be unset.
+// TODO: fix concurrency model here. The channel will stay open even when all calls have finished
+func (c *ChainService) ExecContractCalls(ctx context.Context, schema *generate.SchemaV2, blocks <-chan *big.Int) chan CallResult {
+	out := make(chan CallResult)
+	go func() {
+		// For every incoming blockNumber, we re-run everything
+		for blockNumber := range blocks {
+			for _, contract := range schema.Contracts {
+				for _, method := range contract.Methods() {
+					fmt.Println("Calling method", method.Name())
+					msg, err := generate.BuildCallMsg(contract.Address, method, contract.Abi)
+					if err != nil {
+						out <- CallResult{
+							Err: err,
+						}
+					}
+
+					raw, err := c.client.CallContract(ctx, msg, blockNumber)
+					if err != nil {
+						out <- CallResult{
+							Err: err,
+						}
+					}
+
+					// We only want the correct value here (specified in the schema)
+					results, err := contract.Abi.Unpack(method.Name(), raw)
+					if err != nil {
+						out <- CallResult{
+							Err: err,
+						}
+					}
+
+					outputs := make(map[string]any)
+					for _, o := range method.Outputs() {
+						result := matchABIValue(o, contract.Abi.Methods[method.Name()].Outputs, results)
+						outputs[o] = result
+					}
+
+					out <- CallResult{
+						ContractName: contract.Name(),
+						MethodName:   method.Name(),
+						Inputs:       method.Args(),
+						Outputs:      outputs,
+					}
 				}
 			}
+		}
 
-			raw, err := c.client.CallContract(ctx, msg, blockNumber)
-			if err != nil {
-				resChan <- CallResult{
-					Err: err,
-				}
-			}
+		close(out)
+	}()
 
-			// We only want the correct value here (specified in the schema)
-			results, err := schema.Abi.Unpack(method.Name(), raw)
-			if err != nil {
-				resChan <- CallResult{
-					Err: err,
-				}
-			}
-
-			fmt.Println("Results: ", results)
-
-			outputs := make(map[string]any)
-			for _, o := range method.Outputs() {
-				result := matchABIValue(o, schema.Abi.Methods[method.Name()].Outputs, results)
-				outputs[o] = result
-			}
-
-			resChan <- CallResult{
-				ContractName: schema.Name(),
-				MethodName:   method.Name(),
-				Inputs:       method.Args(),
-				Outputs:      outputs,
-			}
-		}(method)
-	}
+	return out
 }
 
 func matchABIValue(outputName string, outputs abi.Arguments, results []any) any {

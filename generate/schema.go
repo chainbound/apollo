@@ -164,9 +164,8 @@ func ParseV2(path string) (*SchemaV2, error) {
 		return nil, fmt.Errorf("ParseV2: parsing yaml: %w", err)
 	}
 
-	fmt.Printf("%+v\n", schema)
 	for _, contract := range schema.Contracts {
-		// TODO: path should be steady
+		// TODO: path should be steady (use set config path)
 		f, err := os.Open("../" + contract.AbiPath)
 		if err != nil {
 			return nil, fmt.Errorf("ParseV2: reading ABI file: %w", err)
