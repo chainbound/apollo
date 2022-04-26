@@ -1,0 +1,27 @@
+# Define the chain to run on
+chain: arbitrum
+
+# The contracts to populate tables for (concurrently)
+contracts:
+  - address: 0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8
+    # This will be the name of the table
+    name: usdc
+    # ABI file path
+    abi: erc20.abi.json
+    methods:
+      - name: balanceOf
+        args:
+          _owner: 0xe1Dd30fecAb8a63105F2C035B084BfC6Ca5B1493
+        outputs:
+          - balance
+
+  - address: 0xAA970A61A04b1cA14834A43f5dE4533eBDDB5CC8
+    name: usdt
+    abi: erc20.abi.json
+    methods:
+      - name: totalSupply
+        # No args in this case
+        outputs:
+          # the totalSupply() method does not have named outputs, so
+          # this will dynamically name the output parameter 'supply'
+          - supply

@@ -6,11 +6,61 @@ import (
 	"os"
 
 	"github.com/ethereum/go-ethereum/common"
+	"gopkg.in/yaml.v2"
+)
+
+type Chain string
+
+const (
+	Ethereum  Chain = "ethereum"
+	Arbitrum  Chain = "arbitrum"
+	Optimisim Chain = "optimism"
+	BSC       Chain = "bsc"
+	Polygon   Chain = "polygon"
+	Fantom    Chain = "fantom"
 )
 
 // TODO: interface
 type SchemaV1 struct {
 	Chains Chains
+}
+
+type SchemaV2 struct {
+	Chain     Chain              `yaml:"chain"`
+	Contracts []ContractSchemaV2 `yaml:"contracts"`
+}
+
+type ContractSchemaV2 struct {
+	Address_ common.Address `yaml:"address"`
+	Name_    string         `yaml:"name"`
+	AbiPath  string         `yaml:"abi"`
+	Methods_ []MethodV2     `yaml:"methods"`
+}
+
+func (cs ContractSchemaV2) Name() string {
+	return cs.Name_
+}
+
+func (cs ContractSchemaV2) Methods() []MethodV2 {
+	return cs.Methods_
+}
+
+type MethodV2 struct {
+	Name_    string            `yaml:"name"`
+	Args_    map[string]string `yaml:"args,omitempty"` // Args can be empty
+	Outputs_ []string          `yaml:"outputs"`
+}
+
+func (m MethodV2) Name() string {
+	return m.Name_
+}
+
+func (m MethodV2) Args() map[string]string {
+	return m.Args_
+}
+
+func (m MethodV2) Outputs() []string {
+	return m.Outputs_
 }
 
 // func (s SchemaV1) ContractMethods(contract common.Address) []string {
@@ -96,6 +146,20 @@ func ParseV1(path string) (*SchemaV1, error) {
 
 	if err = json.Unmarshal(file, &schema); err != nil {
 		return nil, fmt.Errorf("ParseV1: parsing schema: %w", err)
+	}
+
+	return &schema, nil
+}
+
+func ParseV2(path string) (*SchemaV2, error) {
+	var schema SchemaV2
+
+	file, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("ParseV2: reading file: %w", err)
+	}
+	if err = yaml.Unmarshal(file, &schema); err != nil {
+		return nil, fmt.Errorf("ParseV2: parsing yaml: %w", err)
 	}
 
 	return &schema, nil

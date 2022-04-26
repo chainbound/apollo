@@ -13,38 +13,17 @@ type Column struct {
 	Final bool // utility flag for setting types, finalized when type is known
 }
 
-type Type string
-
-// Type Enum
-const (
-	Uint256 Type = "uint256"
-	String  Type = "string"
-	Address Type = "address"
-)
-
-var (
-	types = map[Type]string{
-		Uint256: "BIGINT",
-		String:  "VARCHAR(55)", // strings are used for things like chain names
-		Address: "VARCHAR(40)", // addresses should be stored as strings without 0x prefix
-	}
-)
-
-func ConvertType(solType Type) string {
-	return types[solType]
-}
-
-func GenerateDDL(abi abi.ABI, schema ContractSchemaV1) (string, error) {
+func GenerateDDL(abi abi.ABI, schema ContractSchemaV2) (string, error) {
 	columns, err := GenerateColumns(schema)
 	if err != nil {
 		return "", err
 	}
 
-	for k := range schema.Methods {
-		columns = AddColumnTypesFromABI(k, abi, columns)
+	for _, m := range schema.Methods() {
+		columns = AddColumnTypesFromABI(m.Name(), abi, columns)
 	}
 
-	ddl := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (\n", schema.Name)
+	ddl := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (\n", schema.Name())
 	for _, col := range columns {
 		if col.Name == "timestamp" {
 			ddl += fmt.Sprintf("\t%s %s PRIMARY KEY,\n", col.Name, col.Type)
@@ -88,7 +67,7 @@ func AddColumnTypesFromABI(methodName string, abi abi.ABI, columns []*Column) []
 	return columns
 }
 
-func GenerateColumns(schema ContractSchemaV1) ([]*Column, error) {
+func GenerateColumns(cs ContractSchemaV2) ([]*Column, error) {
 	columns := []*Column{
 		{
 			Name:  "timestamp",
@@ -108,15 +87,15 @@ func GenerateColumns(schema ContractSchemaV1) ([]*Column, error) {
 	}
 
 	// The only dynamic table columns are the arguments and the return values
-	for _, call := range schema.Methods {
-		for arg := range call.Arguments {
+	for _, call := range cs.Methods() {
+		for arg := range call.Args() {
 			columns = append(columns, &Column{
 				Name: arg,
 				// Type will be read from ABI
 			})
 		}
 
-		for _, output := range call.Outputs {
+		for _, output := range call.Outputs() {
 			columns = append(columns, &Column{
 				Name: output,
 				// Type will be read from ABI

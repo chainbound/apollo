@@ -37,7 +37,7 @@ func TestConnect(t *testing.T) {
 
 func TestCreateTable(t *testing.T) {
 	db := newDB()
-	schema, err := generate.ParseV1("../schema.v1.json")
+	schema, err := generate.ParseV2("../schema.v2.yml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +55,7 @@ func TestCreateTable(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 
-	for _, s := range schema.ContractSchemas() {
+	for _, s := range schema.Contracts {
 		ddl, err := generate.GenerateDDL(abi, s)
 		if err != nil {
 			t.Fatal(err)
