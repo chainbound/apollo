@@ -20,8 +20,7 @@ func GenerateDDL(schema ContractSchemaV2) (string, error) {
 	}
 
 	for _, m := range schema.Methods() {
-		// columns = AddColumnTypesFromABI(m.Name(), schema.Abi, columns)
-		columns = AddColumnTypesFromABI(m.Name(), abi.ABI{}, columns)
+		columns = AddColumnTypesFromABI(m.Name(), schema.Abi, columns)
 	}
 
 	ddl := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (\n", schema.Name())
@@ -45,8 +44,8 @@ func AddColumnTypesFromABI(methodName string, abi abi.ABI, columns []*Column) []
 		for _, i := range method.Inputs {
 			if i.Name == col.Name {
 				col.Type = ABIToSQLType(ABIType(i.Type.String()))
+				col.Final = true
 			}
-			col.Final = true
 		}
 
 		for _, o := range method.Outputs {

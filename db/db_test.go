@@ -4,13 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/XMonetae-DeFi/apollo/generate"
-
-	"github.com/ethereum/go-ethereum/accounts/abi"
 )
 
 func newDB() *DB {
@@ -42,21 +39,11 @@ func TestCreateTable(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	file, err := os.Open("../erc20.abi.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	abi, err := abi.JSON(file)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 
 	for _, s := range schema.Contracts {
-		ddl, err := generate.GenerateDDL(abi, s)
+		ddl, err := generate.GenerateDDL(*s)
 		if err != nil {
 			t.Fatal(err)
 		}

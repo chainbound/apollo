@@ -24,7 +24,12 @@ var (
 )
 
 func ABIToSQLType(abiType ABIType) string {
-	return sqlTypes[abiType]
+	if sqlType, ok := sqlTypes[abiType]; ok {
+		return sqlType
+	}
+
+	// By default, return BIGINT
+	return "BIGINT"
 }
 
 func ABIToGoType(abiType ABIType, val string) any {
