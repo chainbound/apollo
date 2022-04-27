@@ -1,7 +1,7 @@
 # Define the chain to run on
 chain: arbitrum
 
-# The contracts to populate tables for (concurrently)
+# The contracts to populate tables for
 contracts:
   - address: 0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8
     # This will be the name of the table

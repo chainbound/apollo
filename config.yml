@@ -1,0 +1,9 @@
+# config.yml
+
+# RPCs to use. Websockets required for realtime mode.
+rpc:
+  ethereum:
+  arbitrum: wss://arb-mainnet.g.alchemy.com/v2/5_JWUuiS1cewWFpLzRxdjgZM0yLA4Uqp
+  optimism:
+  polygon:
+  fantom:

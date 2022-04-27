@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/XMonetae-DeFi/apollo/db"
 	"github.com/XMonetae-DeFi/apollo/generate"
 )
 
@@ -16,21 +15,11 @@ const (
 	rpcUrl = "wss://arb-mainnet.g.alchemy.com/v2/5_JWUuiS1cewWFpLzRxdjgZM0yLA4Uqp"
 )
 
-func newClient() *ChainService {
+func newChainService() *ChainService {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
-	db, err := db.NewDB(db.DbSettings{
-		Host:     "172.17.0.2",
-		User:     "chainreader",
-		Password: "chainreader",
-		Name:     "postgres",
-	}).Connect()
 
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	c, err := NewChainService(db).Connect(ctx, rpcUrl)
+	c, err := NewChainService().Connect(ctx, rpcUrl)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -39,7 +28,7 @@ func newClient() *ChainService {
 }
 
 func TestConnect(t *testing.T) {
-	c := newClient()
+	c := newChainService()
 
 	if !c.IsConnected() {
 		t.Fatal("not connected")
@@ -52,17 +41,24 @@ func TestExecCallContracts(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	service := newClient()
+	service := newChainService()
 
 	blocks := make(chan *big.Int)
 
-	res := service.ExecContractCalls(context.Background(), schema, blocks)
+	res := service.RunMethodCaller(context.Background(), schema, blocks)
 
 	// Latest block, then close
 	blocks <- nil
 	close(blocks)
 
 	for res := range res {
-		fmt.Println(res)
+		fmt.Printf("Result from %s [%s]\n", res.MethodName, res.ContractName)
+		for k, v := range res.Inputs {
+			fmt.Println(k, ":", v)
+		}
+
+		for k, v := range res.Outputs {
+			fmt.Println(k, ":", v)
+		}
 	}
 }
