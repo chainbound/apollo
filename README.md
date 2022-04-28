@@ -11,6 +11,12 @@
 - [x] Simplify schema parser
   - [x] Upgrade schema to yaml
 
+## Program Execution
+1. DDL is generated based on the schema
+2. This DDL is then executed on the DB and the relevant tables are created
+3. Ethereum call messages are generated based on the schema and the ABI
+4. The main program loop starts, executing the call messages in an interval
+5. The values are written to the tables
 
 ## Example Schema
 ```yml
