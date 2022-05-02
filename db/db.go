@@ -16,10 +16,10 @@ var (
 )
 
 type DbSettings struct {
-	User     string
-	Password string
-	Name     string
-	Host     string
+	User     string `yaml:"user"`
+	Password string `yaml:"password"`
+	Name     string `yaml:"name"`
+	Host     string `yaml:"host"`
 }
 
 type DB struct {

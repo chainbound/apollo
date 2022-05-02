@@ -54,7 +54,8 @@ type CallResult struct {
 
 // RunMethodCaller starts a listener on the `blocks` channel, and on every incoming block it will execute all methods concurrently
 // on the given blockNumber.
-func (c *ChainService) RunMethodCaller(ctx context.Context, schema *generate.SchemaV2, blocks <-chan *big.Int) <-chan CallResult {
+func (c *ChainService) RunMethodCaller(ctx context.Context, schema *generate.SchemaV2, realtime bool, blocks <-chan *big.Int) <-chan CallResult {
+	res := make(chan CallResult)
 	out := make(chan CallResult)
 	var wg sync.WaitGroup
 
@@ -65,7 +66,7 @@ func (c *ChainService) RunMethodCaller(ctx context.Context, schema *generate.Sch
 			for _, contract := range schema.Contracts {
 				for _, method := range contract.Methods() {
 					go func(chain generate.Chain, contract *generate.ContractSchemaV2, method generate.MethodV2, blockNumber *big.Int) {
-						c.CallMethod(ctx, chain, contract, method, blockNumber, out)
+						c.CallMethod(ctx, chain, contract, method, blockNumber, res)
 						wg.Done()
 					}(schema.Chain, contract, method, blockNumber)
 					wg.Add(1)
@@ -78,6 +79,16 @@ func (c *ChainService) RunMethodCaller(ctx context.Context, schema *generate.Sch
 		// When all of our methods have executed AND the blocks channel was closed on the other side,
 		// close the out channel
 		close(out)
+	}()
+
+	go func() {
+		for r := range res {
+			if realtime {
+				r.Timestamp = uint64(time.Now().UnixMilli() / 1000)
+			}
+
+			out <- r
+		}
 	}()
 
 	return out
@@ -101,7 +112,9 @@ func (c ChainService) CallMethod(ctx context.Context, chain generate.Chain, cont
 		return
 	}
 
-	actualBlock, err := c.client.BlockNumber(ctx)
+	// fmt.Println(blockNumber)
+	actualBlockNumber := uint64(0)
+	block, err := c.client.HeaderByNumber(ctx, blockNumber)
 	if err != nil {
 		out <- CallResult{
 			Err: err,
@@ -109,7 +122,12 @@ func (c ChainService) CallMethod(ctx context.Context, chain generate.Chain, cont
 		return
 	}
 
-	timestamp := uint64(time.Now().UnixMilli() / 1000)
+	if blockNumber == nil {
+		actualBlockNumber = block.Number.Uint64()
+	} else {
+		actualBlockNumber = blockNumber.Uint64()
+	}
+
 	// We only want the correct value here (specified in the schema)
 	results, err := contract.Abi.Unpack(method.Name(), raw)
 	if err != nil {
@@ -126,8 +144,8 @@ func (c ChainService) CallMethod(ctx context.Context, chain generate.Chain, cont
 	}
 
 	out <- CallResult{
-		BlockNumber:     actualBlock,
-		Timestamp:       timestamp,
+		BlockNumber:     actualBlockNumber,
+		Timestamp:       block.Time,
 		Chain:           chain,
 		ContractName:    contract.Name(),
 		ContractAddress: contract.Address,

@@ -89,11 +89,6 @@ func GenerateColumns(cs ContractSchemaV2) ([]*Column, error) {
 			Type:  ABIToSQLType(Address),
 			Final: true,
 		},
-		{
-			Name:  "methodName",
-			Type:  ABIToSQLType(Address),
-			Final: true,
-		},
 	}
 
 	// The only dynamic table columns are the arguments and the return values

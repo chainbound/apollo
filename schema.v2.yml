@@ -3,17 +3,17 @@ chain: arbitrum
 
 # The contracts to populate tables for
 contracts:
-  # - address: 0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8
+  # - address: 0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E
   #   # This will be the name of the table
   #   name: usdc
   #   # ABI file path
   #   abi: erc20.abi.json
   #   methods:
-  #     - name: balanceOf
-  #       args:
-  #         _owner: 0xe1Dd30fecAb8a63105F2C035B084BfC6Ca5B1493
-  #       outputs:
-  #         - balance
+  #     # - name: balanceOf
+  #     #   args:
+  #     #     _owner: 0xe1Dd30fecAb8a63105F2C035B084BfC6Ca5B1493
+  #     #   outputs:
+  #     #     - balance
   #     - name: totalSupply
   #       # No args in this case
   #       outputs:
@@ -21,11 +21,11 @@ contracts:
   #         # this will dynamically name the output parameter 'supply'
   #         - supply
 
-  #   events:
-  #     - name: Approval
-  #       outputs:
-  #         - owner
-  #         - value
+  # events:
+  #   - name: Approval
+  #     outputs:
+  #       - owner
+  #       - value
 
   # - address: 0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9
   #   name: usdt
@@ -47,3 +47,6 @@ contracts:
           - answer
           - roundId
           - updatedAt
+      # - name: latestAnswer
+      #   outputs:
+      #     - latest

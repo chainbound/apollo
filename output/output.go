@@ -87,7 +87,7 @@ func NewCsvHandler() *CsvHandler {
 }
 
 func (c *CsvHandler) AddCsv(cs generate.ContractSchemaV2) error {
-	f, err := os.OpenFile(cs.Name()+".csv", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.Create(cs.Name() + ".csv")
 	if err != nil {
 		return err
 	}
@@ -108,7 +108,7 @@ func generateCsvEntry(res chainservice.CallResult, header []string) []string {
 	entries := make([]string, len(res.Inputs)+len(res.Outputs))
 
 	// Remove the standard headers
-	header = header[5:]
+	header = header[4:]
 
 	for k, v := range res.Inputs {
 		for i, h := range header {
@@ -131,7 +131,6 @@ func generateCsvEntry(res chainservice.CallResult, header []string) []string {
 		fmt.Sprint(res.BlockNumber),
 		string(res.Chain),
 		res.ContractAddress.String(),
-		res.MethodName,
 	}
 
 	row = append(row, entries...)

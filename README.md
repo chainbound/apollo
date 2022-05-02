@@ -1,15 +1,40 @@
 # Apollo
 > Program for easily querying and collecting EVM chaindata based on a schema.
 
-## To Do
-- [ ] How to best generate dynamic golang code (based on schema)
-  - [ ] Look at custom struct tags
-  - [ ] Should probably not generate golang code but just ABI pack values into transaction input field
-- [x] How to best generate SQL DDL based on schema
-  - Should we use an ORM package or just plain SQL?
-  - For now, just plain SQL will do
-- [x] Simplify schema parser
-  - [x] Upgrade schema to yaml
+## Usage
+### Examples
+* Run a schema every 5 seconds in realtime on Arbitrum, and save the results in a csv
+```
+apollo --realtime --interval 5 --csv --chain arbitrum
+```
+
+* Run a schema every 100 blocks with a start and end block on Arbitrum, and save the results in a DB and a csv
+```
+apollo --start-block 1000000 --end-block 1200000 --interval 100 --csv --db --chain arbitrum 
+```
+
+**All Options**
+```
+NAME:
+   apollo - Run the chain analyzer
+
+USAGE:
+   apollo [global options] command [command options] [arguments...]
+
+COMMANDS:
+   help, h  Shows a list of commands or help for one command
+
+GLOBAL OPTIONS:
+   --realtime, -R                 Run apollo in realtime (default: false)
+   --db                           Save results in database (default: false)
+   --csv                          Save results in csv file (default: false)
+   --stdout                       Print to stdout (default: false)
+   --interval BLOCKS, -i BLOCKS   Interval in BLOCKS or SECONDS (realtime: seconds, historic: blocks) (default: 0)
+   --start-block value, -s value  Starting block number for historical analysis (default: 0)
+   --end-block value, -e value    End block number for historical analysis (default: 0)
+   --chain value, -c value        The chain name
+   --help, -h                     show help (default: false)
+```
 
 ## Program Execution
 1. DDL is generated based on the schema

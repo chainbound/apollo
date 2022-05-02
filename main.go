@@ -28,6 +28,7 @@ type ApolloOpts struct {
 	interval   int64
 	startBlock int64
 	endBlock   int64
+	chain      string
 }
 
 func main() {
@@ -76,6 +77,13 @@ func main() {
 				Usage:       "End block number for historical analysis",
 				Destination: &opts.endBlock,
 			},
+			&cli.StringFlag{
+				Name:        "chain",
+				Aliases:     []string{"c"},
+				Usage:       "The chain name",
+				Required:    true,
+				Destination: &opts.chain,
+			},
 		},
 		Action: func(c *cli.Context) error {
 			err := Run(opts)
@@ -97,18 +105,19 @@ func Run(opts ApolloOpts) error {
 	var (
 		pdb *db.DB
 	)
+
+	cfg, err := NewConfig("config.yml")
+	if err != nil {
+		return err
+	}
+
 	schema, err := generate.ParseV2("schema.v2.yml")
 	if err != nil {
 		return err
 	}
 
 	if opts.db {
-		pdb, err = db.NewDB(db.DbSettings{
-			Host:     "172.17.0.2",
-			User:     "chainreader",
-			Password: "chainreader",
-			Name:     "postgres",
-		}).Connect()
+		pdb, err = db.NewDB(cfg.DbSettings).Connect()
 
 		if err != nil {
 			return err
@@ -118,7 +127,12 @@ func Run(opts ApolloOpts) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 
-	service, err := chainservice.NewChainService().Connect(ctx, rpcUrl)
+	rpc, ok := cfg.Rpc[opts.chain]
+	if !ok {
+		return fmt.Errorf("no rpc defined for chain %s", opts.chain)
+	}
+
+	service, err := chainservice.NewChainService().Connect(ctx, rpc)
 	if err != nil {
 		return err
 	}
@@ -144,6 +158,7 @@ func Run(opts ApolloOpts) error {
 	out := output.NewOutputHandler()
 
 	if opts.db {
+		out = out.WithDB(pdb)
 	}
 
 	if opts.csv {
@@ -155,7 +170,7 @@ func Run(opts ApolloOpts) error {
 	}
 
 	blocks := make(chan *big.Int)
-	res := service.RunMethodCaller(context.Background(), schema, blocks)
+	res := service.RunMethodCaller(context.Background(), schema, opts.realtime, blocks)
 
 	// Start main program loop
 	if opts.realtime {
@@ -169,7 +184,9 @@ func Run(opts ApolloOpts) error {
 		go func() {
 			b := new(big.Int)
 			for i := opts.startBlock; i < opts.endBlock; i += opts.interval {
-				blocks <- b.SetInt64(i)
+				b = b.SetInt64(i)
+				blocks <- b
+				time.Sleep(100 * time.Millisecond)
 			}
 
 			close(blocks)
@@ -183,6 +200,8 @@ func Run(opts ApolloOpts) error {
 			fmt.Println(res.Err)
 			continue
 		}
+
+		fmt.Println(res)
 
 		out.HandleResult(res)
 	}
