@@ -75,12 +75,22 @@ func GenerateColumns(cs ContractSchemaV2) ([]*Column, error) {
 			Final: true,
 		},
 		{
+			Name:  "blocknumber",
+			Type:  ABIToSQLType(Uint256),
+			Final: true,
+		},
+		{
 			Name:  "chain",
 			Type:  ABIToSQLType(String),
 			Final: true,
 		},
 		{
 			Name:  "contract",
+			Type:  ABIToSQLType(Address),
+			Final: true,
+		},
+		{
+			Name:  "methodName",
 			Type:  ABIToSQLType(Address),
 			Final: true,
 		},

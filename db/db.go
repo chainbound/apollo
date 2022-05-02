@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/XMonetae-DeFi/apollo/chainservice"
+	"github.com/XMonetae-DeFi/apollo/generate"
 	_ "github.com/lib/pq"
 )
 
@@ -57,10 +59,23 @@ func (db *DB) IsConnected() bool {
 	}
 }
 
-func (db DB) CreateTable(ctx context.Context, ddl string) error {
-	_, err := db.pdb.ExecContext(ctx, ddl)
+func (db DB) CreateTable(ctx context.Context, s generate.ContractSchemaV2) error {
+	ddl, err := generate.GenerateDDL(s)
 	if err != nil {
 		return err
 	}
+	_, err = db.pdb.ExecContext(ctx, ddl)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (db DB) InsertResult(ctx context.Context, res chainservice.CallResult) error {
+	// _, err := db.pdb.ExecContext(ctx, ddl)
+	// if err != nil {
+	// 	return err
+	// }
+	// return nil
 	return nil
 }

@@ -5,15 +5,16 @@ import (
 	"fmt"
 	"math/big"
 	"sync"
+	"time"
 
 	"github.com/XMonetae-DeFi/apollo/generate"
 	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
 type ChainService struct {
 	client *ethclient.Client
-	// TODO: do we need this?
 }
 
 func NewChainService() *ChainService {
@@ -40,11 +41,15 @@ func (c ChainService) IsConnected() bool {
 }
 
 type CallResult struct {
-	Err          error
-	ContractName string
-	MethodName   string
-	Inputs       map[string]string
-	Outputs      map[string]any
+	Err             error
+	Chain           generate.Chain
+	ContractName    string
+	ContractAddress common.Address
+	BlockNumber     uint64
+	Timestamp       uint64
+	MethodName      string
+	Inputs          map[string]string
+	Outputs         map[string]any
 }
 
 // RunMethodCaller starts a listener on the `blocks` channel, and on every incoming block it will execute all methods concurrently
@@ -59,10 +64,10 @@ func (c *ChainService) RunMethodCaller(ctx context.Context, schema *generate.Sch
 		for blockNumber := range blocks {
 			for _, contract := range schema.Contracts {
 				for _, method := range contract.Methods() {
-					go func(contract *generate.ContractSchemaV2, method generate.MethodV2, blockNumber *big.Int) {
-						c.CallMethod(ctx, contract, method, blockNumber, out)
+					go func(chain generate.Chain, contract *generate.ContractSchemaV2, method generate.MethodV2, blockNumber *big.Int) {
+						c.CallMethod(ctx, chain, contract, method, blockNumber, out)
 						wg.Done()
-					}(contract, method, blockNumber)
+					}(schema.Chain, contract, method, blockNumber)
 					wg.Add(1)
 				}
 			}
@@ -79,12 +84,13 @@ func (c *ChainService) RunMethodCaller(ctx context.Context, schema *generate.Sch
 }
 
 // CallMethod executes a contract method
-func (c ChainService) CallMethod(ctx context.Context, contract *generate.ContractSchemaV2, method generate.MethodV2, blockNumber *big.Int, out chan<- CallResult) {
+func (c ChainService) CallMethod(ctx context.Context, chain generate.Chain, contract *generate.ContractSchemaV2, method generate.MethodV2, blockNumber *big.Int, out chan<- CallResult) {
 	msg, err := generate.BuildCallMsg(contract.Address, method, contract.Abi)
 	if err != nil {
 		out <- CallResult{
 			Err: err,
 		}
+		return
 	}
 
 	raw, err := c.client.CallContract(ctx, msg, blockNumber)
@@ -92,14 +98,25 @@ func (c ChainService) CallMethod(ctx context.Context, contract *generate.Contrac
 		out <- CallResult{
 			Err: err,
 		}
+		return
 	}
 
+	actualBlock, err := c.client.BlockNumber(ctx)
+	if err != nil {
+		out <- CallResult{
+			Err: err,
+		}
+		return
+	}
+
+	timestamp := uint64(time.Now().UnixMilli() / 1000)
 	// We only want the correct value here (specified in the schema)
 	results, err := contract.Abi.Unpack(method.Name(), raw)
 	if err != nil {
 		out <- CallResult{
 			Err: err,
 		}
+		return
 	}
 
 	outputs := make(map[string]any)
@@ -109,10 +126,14 @@ func (c ChainService) CallMethod(ctx context.Context, contract *generate.Contrac
 	}
 
 	out <- CallResult{
-		ContractName: contract.Name(),
-		MethodName:   method.Name(),
-		Inputs:       method.Args(),
-		Outputs:      outputs,
+		BlockNumber:     actualBlock,
+		Timestamp:       timestamp,
+		Chain:           chain,
+		ContractName:    contract.Name(),
+		ContractAddress: contract.Address,
+		MethodName:      method.Name(),
+		Inputs:          method.Args(),
+		Outputs:         outputs,
 	}
 }
 

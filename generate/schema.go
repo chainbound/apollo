@@ -35,6 +35,7 @@ type ContractSchemaV2 struct {
 	Name_    string         `yaml:"name"`
 	AbiPath  string         `yaml:"abi"`
 	Methods_ []MethodV2     `yaml:"methods"`
+	Events_  []EventV2      `yaml:"events"`
 	Abi      abi.ABI        `yaml:"-"`
 }
 
@@ -62,6 +63,19 @@ func (m MethodV2) Args() map[string]string {
 
 func (m MethodV2) Outputs() []string {
 	return m.Outputs_
+}
+
+type EventV2 struct {
+	Name_    string   `yaml:"name"`
+	Outputs_ []string `yaml:"outputs"`
+}
+
+func (e EventV2) Name() string {
+	return e.Name_
+}
+
+func (e EventV2) Outputs() []string {
+	return e.Outputs_
 }
 
 // func (s SchemaV1) ContractMethods(contract common.Address) []string {

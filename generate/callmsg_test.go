@@ -16,7 +16,7 @@ func TestBuildInput(t *testing.T) {
 	}
 
 	method := schema.Contracts[0].Methods()[0]
-	file, err := os.Open("../erc20.abi.json")
+	file, err := os.Open("../feed.abi.json")
 	if err != nil {
 		t.Fatal(err)
 	}

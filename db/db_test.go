@@ -2,7 +2,6 @@ package db
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"testing"
 	"time"
@@ -43,13 +42,7 @@ func TestCreateTable(t *testing.T) {
 	defer cancel()
 
 	for _, s := range schema.Contracts {
-		ddl, err := generate.GenerateDDL(*s)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		fmt.Println(ddl)
-		err = db.CreateTable(ctx, ddl)
+		err = db.CreateTable(ctx, *s)
 		if err != nil {
 			t.Fatal(err)
 		}
