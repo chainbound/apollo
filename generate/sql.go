@@ -23,6 +23,10 @@ func GenerateDDL(schema ContractSchemaV2) (string, error) {
 		columns = AddColumnTypesFromABI(m.Name(), schema.Abi, columns)
 	}
 
+	for _, e := range schema.Events() {
+		columns = AddColumnTypesFromABI(e.Name(), schema.Abi, columns)
+	}
+
 	ddl := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (\n", schema.Name())
 	for _, col := range columns {
 		if col.Name == "timestamp" {
@@ -38,9 +42,14 @@ func GenerateDDL(schema ContractSchemaV2) (string, error) {
 	return ddl, nil
 }
 
-func AddColumnTypesFromABI(methodName string, abi abi.ABI, columns []*Column) []*Column {
+// AddColumnTypesFromABI cross-references the name ("event" or "method") with the ABI,
+// to fill in which types the columns need to be. These types get converted to SQL types
+// eventually.
+func AddColumnTypesFromABI(name string, abi abi.ABI, columns []*Column) []*Column {
 	for _, col := range columns {
-		method := abi.Methods[methodName]
+		// METHODS
+		fmt.Println(col.Name)
+		method := abi.Methods[name]
 		for _, i := range method.Inputs {
 			if i.Name == col.Name {
 				col.Type = ABIToSQLType(ABIType(i.Type.String()))
@@ -61,6 +70,17 @@ func AddColumnTypesFromABI(methodName string, abi abi.ABI, columns []*Column) []
 		if len(method.Outputs) == 1 && !col.Final {
 			col.Type = ABIToSQLType(ABIType(method.Outputs[0].Type.String()))
 			col.Final = true
+		}
+
+		// EVENTS
+		event := abi.Events[name]
+		fmt.Println(event)
+		for _, o := range event.Inputs {
+			fmt.Println(o.Name, col.Name)
+			if o.Name == col.Name {
+				col.Type = ABIToSQLType(ABIType(o.Type.String()))
+				col.Final = true
+			}
 		}
 	}
 
@@ -104,6 +124,15 @@ func GenerateColumns(cs ContractSchemaV2) ([]*Column, error) {
 			columns = append(columns, &Column{
 				Name: output,
 				// Type will be read from ABI
+			})
+		}
+	}
+
+	// Generate outputs for events
+	for _, events := range cs.Events() {
+		for _, output := range events.Outputs() {
+			columns = append(columns, &Column{
+				Name: output,
 			})
 		}
 	}

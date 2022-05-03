@@ -21,7 +21,9 @@ func TestGenerateColumns(t *testing.T) {
 		cols = append(cols, c...)
 	}
 
-	fmt.Println(cols)
+	for _, col := range cols {
+		fmt.Println(col)
+	}
 }
 
 func TestGenerateDDL(t *testing.T) {

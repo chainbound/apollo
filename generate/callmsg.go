@@ -1,6 +1,7 @@
 package generate
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum"
@@ -38,4 +39,15 @@ func BuildCallInput(method MethodV2, abi abi.ABI) ([]byte, error) {
 	}
 
 	return input, nil
+}
+
+func GetTopic(eventName string, abi abi.ABI) (common.Hash, error) {
+	var topic common.Hash
+	if event, ok := abi.Events[eventName]; !ok {
+		return common.Hash{}, errors.New("GetTopic: no such event")
+	} else {
+		topic = event.ID
+	}
+
+	return topic, nil
 }

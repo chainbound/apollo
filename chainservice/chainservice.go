@@ -8,8 +8,10 @@ import (
 	"time"
 
 	"github.com/XMonetae-DeFi/apollo/generate"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
@@ -53,29 +55,37 @@ type CallResult struct {
 
 // RunMethodCaller starts a listener on the `blocks` channel, and on every incoming block it will execute all methods concurrently
 // on the given blockNumber.
-func (c *ChainService) RunMethodCaller(ctx context.Context, schema *generate.SchemaV2, realtime bool, blocks <-chan *big.Int) <-chan CallResult {
+func (c *ChainService) RunMethodCaller(ctx context.Context, schema *generate.SchemaV2, realtime bool, blocks <-chan *big.Int, maxWorkers int) <-chan CallResult {
 	res := make(chan CallResult)
 	out := make(chan CallResult)
 	var wg sync.WaitGroup
 
+	// TODO: worker pool for blocks (every 32 or something)
+	nworkers := 1
 	go func() {
 		// For every incoming blockNumber, loop over contract methods and start a goroutine for each method.
 		// This way, every eth_call will happen concurrently.
 		for blockNumber := range blocks {
-			for _, contract := range schema.Contracts {
-				go func(chain generate.Chain, contract *generate.ContractSchemaV2, blockNumber *big.Int) {
-					c.CallMethods(ctx, chain, contract, blockNumber, res)
-					wg.Done()
-				}(schema.Chain, contract, blockNumber)
-				wg.Add(1)
-			}
+			go func(blockNumber *big.Int) {
+				defer wg.Done()
+				nworkers++
 
+				for _, contract := range schema.Contracts {
+					c.CallMethods(ctx, schema.Chain, contract, blockNumber, res)
+				}
+			}(blockNumber)
+			wg.Add(1)
+
+			if nworkers%maxWorkers == 0 {
+				wg.Wait()
+			}
 		}
 
 		wg.Wait()
+
 		// When all of our methods have executed AND the blocks channel was closed on the other side,
 		// close the out channel
-		close(out)
+		close(res)
 	}()
 
 	// If we called more than one method, we want to aggregate the results
@@ -87,6 +97,7 @@ func (c *ChainService) RunMethodCaller(ctx context.Context, schema *generate.Sch
 
 			out <- r
 		}
+		close(out)
 	}()
 
 	return out
@@ -112,8 +123,6 @@ func (c ChainService) CallMethods(ctx context.Context, chain generate.Chain, con
 			}
 			return
 		}
-
-		// fmt.Println(blockNumber)
 
 		// We only want the correct value here (specified in the schema)
 		results, err := contract.Abi.Unpack(method.Name(), raw)
@@ -158,6 +167,113 @@ func (c ChainService) CallMethods(ctx context.Context, chain generate.Chain, con
 		Inputs:          inputs,
 		Outputs:         outputs,
 	}
+}
+
+func (c ChainService) FilterEvents(ctx context.Context, schema *generate.SchemaV2, fromBlock, toBlock *big.Int, maxWorkers int) <-chan CallResult {
+	out := make(chan CallResult)
+	var wg sync.WaitGroup
+
+	// TODO: worker pool for blocks (every 32 or something)
+	nworkers := 1
+	go func() {
+
+		for _, cs := range schema.Contracts {
+			for _, event := range cs.Events() {
+				topic, err := generate.GetTopic(event.Name(), cs.Abi)
+				if err != nil {
+					out <- CallResult{
+						Err: err,
+					}
+					return
+				}
+
+				indexedEvents := make(map[string]int)
+				abiEvent := cs.Abi.Events[event.Name()]
+
+				// Collect the indexes for the events that are "indexed" (they appear in the "topics" of the log)
+				for i, arg := range abiEvent.Inputs {
+					if arg.Indexed {
+						for _, o := range event.Outputs() {
+							if arg.Name == o {
+								// First index is always the main topic
+								indexedEvents[arg.Name] = i + 1
+							}
+						}
+					}
+				}
+
+				logs, err := c.client.FilterLogs(ctx, ethereum.FilterQuery{
+					FromBlock: fromBlock,
+					ToBlock:   toBlock,
+					Addresses: []common.Address{cs.Address},
+					Topics: [][]common.Hash{
+						{topic},
+					},
+				})
+
+				if err != nil {
+					out <- CallResult{
+						Err: fmt.Errorf("getting logs from node: %w", err),
+					}
+					return
+				}
+
+				for _, log := range logs {
+					outputs := make(map[string]any)
+					for _, event := range event.Outputs() {
+						if idx, ok := indexedEvents[event]; ok {
+							outputs[event] = common.BytesToAddress(log.Topics[idx][:])
+						}
+					}
+
+					if len(outputs) < len(event.Outputs()) {
+						err := cs.Abi.UnpackIntoMap(outputs, event.Name(), log.Data)
+						if err != nil {
+							out <- CallResult{
+								Err: fmt.Errorf("unpacking log.Data: %w", err),
+							}
+							return
+						}
+					}
+					// fmt.Println(outputs)
+
+					go func(log types.Log) {
+						defer wg.Done()
+						h, err := c.client.HeaderByNumber(ctx, big.NewInt(int64(log.BlockNumber)))
+						if err != nil {
+							if err != nil {
+								out <- CallResult{
+									Err: fmt.Errorf("getting block header: %w", err),
+								}
+								return
+							}
+						}
+
+						out <- CallResult{
+							Chain:           schema.Chain,
+							ContractName:    cs.Name(),
+							ContractAddress: cs.Address,
+							BlockNumber:     log.BlockNumber,
+							Timestamp:       h.Time,
+							Outputs:         outputs,
+						}
+					}(log)
+					wg.Add(1)
+
+					if nworkers%maxWorkers == 0 {
+						wg.Wait()
+					}
+				}
+
+			}
+		}
+
+		wg.Wait()
+
+		close(out)
+	}()
+
+	return out
 }
 
 func matchABIValue(outputName string, outputs abi.Arguments, results []any) any {

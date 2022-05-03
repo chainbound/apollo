@@ -12,5 +12,9 @@ func GenerateCsvHeader(cs ContractSchemaV2) []string {
 		columns = append(columns, call.Outputs()...)
 	}
 
+	for _, event := range cs.Events() {
+		columns = append(columns, event.Outputs()...)
+	}
+
 	return columns
 }

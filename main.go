@@ -169,8 +169,10 @@ func Run(opts ApolloOpts) error {
 		out = out.WithStdOut()
 	}
 
+	// First check if there are any methods to be called, it might just be events
+	maxWorkers := 16
 	blocks := make(chan *big.Int)
-	res := service.RunMethodCaller(context.Background(), schema, opts.realtime, blocks)
+	res := service.RunMethodCaller(context.Background(), schema, opts.realtime, blocks, maxWorkers)
 
 	// Start main program loop
 	if opts.realtime {
@@ -182,26 +184,29 @@ func Run(opts ApolloOpts) error {
 		}()
 	} else {
 		go func() {
-			b := new(big.Int)
 			for i := opts.startBlock; i < opts.endBlock; i += opts.interval {
-				b = b.SetInt64(i)
-				blocks <- b
-				time.Sleep(100 * time.Millisecond)
+				blocks <- big.NewInt(i)
 			}
 
 			close(blocks)
 		}()
 	}
 
-	// We can differentiate between realtime results and historical results
-	// by checking the BlockNumber field (realtime: BlockNumber = nil)
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*50)
+	defer cancel()
+
+	// IF events
+	if opts.realtime {
+		fmt.Println("todo")
+	} else {
+		res = service.FilterEvents(ctx, schema, big.NewInt(opts.startBlock), big.NewInt(opts.endBlock), maxWorkers)
+	}
+
 	for res := range res {
 		if res.Err != nil {
 			fmt.Println(res.Err)
 			continue
 		}
-
-		fmt.Println(res)
 
 		out.HandleResult(res)
 	}

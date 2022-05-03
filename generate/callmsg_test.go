@@ -15,6 +15,10 @@ func TestBuildInput(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	if len(schema.Contracts[0].Methods()) == 0 {
+		return
+	}
+
 	method := schema.Contracts[0].Methods()[0]
 	file, err := os.Open("../feed.abi.json")
 	if err != nil {
