@@ -47,6 +47,6 @@ contracts:
           - answer
           - roundId
           - updatedAt
-      # - name: latestAnswer
-      #   outputs:
-      #     - latest
+      - name: latestAnswer
+        outputs:
+          - latest

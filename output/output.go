@@ -61,8 +61,7 @@ func (o OutputHandler) HandleResult(res chainservice.CallResult) error {
 
 	if o.csv != nil {
 		csv := o.csv.files[res.ContractName]
-		header := o.csv.headers[res.ContractName]
-		err := csv.Write(generateCsvEntry(res, header))
+		err := csv.Write(o.csv.generateCsvEntry(res))
 		if err != nil {
 			return err
 		}
@@ -104,11 +103,13 @@ func (c *CsvHandler) AddCsv(cs generate.ContractSchemaV2) error {
 	return nil
 }
 
-func generateCsvEntry(res chainservice.CallResult, header []string) []string {
-	entries := make([]string, len(res.Inputs)+len(res.Outputs))
+func (c CsvHandler) generateCsvEntry(res chainservice.CallResult) []string {
+	header := c.headers[res.ContractName]
+	// Remove standard columns
+	header = header[4:]
+	entries := make([]string, len(header))
 
 	// Remove the standard headers
-	header = header[4:]
 
 	for k, v := range res.Inputs {
 		for i, h := range header {

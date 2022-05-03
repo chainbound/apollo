@@ -47,7 +47,6 @@ type CallResult struct {
 	ContractAddress common.Address
 	BlockNumber     uint64
 	Timestamp       uint64
-	MethodName      string
 	Inputs          map[string]string
 	Outputs         map[string]any
 }
@@ -64,13 +63,11 @@ func (c *ChainService) RunMethodCaller(ctx context.Context, schema *generate.Sch
 		// This way, every eth_call will happen concurrently.
 		for blockNumber := range blocks {
 			for _, contract := range schema.Contracts {
-				for _, method := range contract.Methods() {
-					go func(chain generate.Chain, contract *generate.ContractSchemaV2, method generate.MethodV2, blockNumber *big.Int) {
-						c.CallMethod(ctx, chain, contract, method, blockNumber, res)
-						wg.Done()
-					}(schema.Chain, contract, method, blockNumber)
-					wg.Add(1)
-				}
+				go func(chain generate.Chain, contract *generate.ContractSchemaV2, blockNumber *big.Int) {
+					c.CallMethods(ctx, chain, contract, blockNumber, res)
+					wg.Done()
+				}(schema.Chain, contract, blockNumber)
+				wg.Add(1)
 			}
 
 		}
@@ -81,6 +78,7 @@ func (c *ChainService) RunMethodCaller(ctx context.Context, schema *generate.Sch
 		close(out)
 	}()
 
+	// If we called more than one method, we want to aggregate the results
 	go func() {
 		for r := range res {
 			if realtime {
@@ -94,25 +92,48 @@ func (c *ChainService) RunMethodCaller(ctx context.Context, schema *generate.Sch
 	return out
 }
 
-// CallMethod executes a contract method
-func (c ChainService) CallMethod(ctx context.Context, chain generate.Chain, contract *generate.ContractSchemaV2, method generate.MethodV2, blockNumber *big.Int, out chan<- CallResult) {
-	msg, err := generate.BuildCallMsg(contract.Address, method, contract.Abi)
-	if err != nil {
-		out <- CallResult{
-			Err: err,
+// CallMethods executes all the methods on the contract, and aggregates their results into a CallResult
+func (c ChainService) CallMethods(ctx context.Context, chain generate.Chain, contract *generate.ContractSchemaV2, blockNumber *big.Int, out chan<- CallResult) {
+	inputs := make(map[string]string)
+	outputs := make(map[string]any)
+	for _, method := range contract.Methods() {
+		msg, err := generate.BuildCallMsg(contract.Address, method, contract.Abi)
+		if err != nil {
+			out <- CallResult{
+				Err: err,
+			}
+			return
 		}
-		return
+
+		raw, err := c.client.CallContract(ctx, msg, blockNumber)
+		if err != nil {
+			out <- CallResult{
+				Err: err,
+			}
+			return
+		}
+
+		// fmt.Println(blockNumber)
+
+		// We only want the correct value here (specified in the schema)
+		results, err := contract.Abi.Unpack(method.Name(), raw)
+		if err != nil {
+			out <- CallResult{
+				Err: err,
+			}
+			return
+		}
+
+		for _, o := range method.Outputs() {
+			result := matchABIValue(o, contract.Abi.Methods[method.Name()].Outputs, results)
+			outputs[o] = result
+		}
+
+		for k, v := range method.Args() {
+			inputs[k] = v
+		}
 	}
 
-	raw, err := c.client.CallContract(ctx, msg, blockNumber)
-	if err != nil {
-		out <- CallResult{
-			Err: err,
-		}
-		return
-	}
-
-	// fmt.Println(blockNumber)
 	actualBlockNumber := uint64(0)
 	block, err := c.client.HeaderByNumber(ctx, blockNumber)
 	if err != nil {
@@ -128,29 +149,13 @@ func (c ChainService) CallMethod(ctx context.Context, chain generate.Chain, cont
 		actualBlockNumber = blockNumber.Uint64()
 	}
 
-	// We only want the correct value here (specified in the schema)
-	results, err := contract.Abi.Unpack(method.Name(), raw)
-	if err != nil {
-		out <- CallResult{
-			Err: err,
-		}
-		return
-	}
-
-	outputs := make(map[string]any)
-	for _, o := range method.Outputs() {
-		result := matchABIValue(o, contract.Abi.Methods[method.Name()].Outputs, results)
-		outputs[o] = result
-	}
-
 	out <- CallResult{
 		BlockNumber:     actualBlockNumber,
 		Timestamp:       block.Time,
 		Chain:           chain,
 		ContractName:    contract.Name(),
 		ContractAddress: contract.Address,
-		MethodName:      method.Name(),
-		Inputs:          method.Args(),
+		Inputs:          inputs,
 		Outputs:         outputs,
 	}
 }

@@ -52,7 +52,7 @@ func TestExecCallContracts(t *testing.T) {
 	close(blocks)
 
 	for res := range res {
-		fmt.Printf("Result from %s [%s]\n", res.MethodName, res.ContractName)
+		fmt.Printf("Result from [%s]\n", res.ContractName)
 		for k, v := range res.Inputs {
 			fmt.Println(k, ":", v)
 		}
