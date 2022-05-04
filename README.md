@@ -2,6 +2,14 @@
 > Program for easily querying and collecting EVM chaindata based on a schema.
 
 ## Usage
+First, generate the config directory:
+```
+apollo init
+```
+This will output where the configuration files were written to. **This path is where you will have
+to save the ABIs for the contracts you want to query.**
+
+Next up, put the ABI in your config dir and modify the schema to fit your requests.
 ### Examples
 * Run a schema every 5 seconds in realtime on Arbitrum, and save the results in a csv
 ```

@@ -148,11 +148,13 @@ func Init() error {
 	if err := os.WriteFile(configPath, cfg, 0644); err != nil {
 		return err
 	}
+	fmt.Println("config written", configPath)
 
 	schemaPath := path.Join(dirPath, "schema.yml")
 	if err := os.WriteFile(schemaPath, schema, 0644); err != nil {
 		return err
 	}
+	fmt.Println("schema written", schemaPath)
 
 	return nil
 }
