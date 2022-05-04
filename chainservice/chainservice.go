@@ -246,6 +246,9 @@ func (c ChainService) FilterEvents(schema *generate.SchemaV2, fromBlock, toBlock
 					}
 
 					for _, log := range logs {
+						ctx, cancel = context.WithTimeout(context.Background(), c.defaultTimeout)
+						defer cancel()
+
 						outputs := make(map[string]any)
 						for _, event := range event.Outputs() {
 							if idx, ok := indexedEvents[event]; ok {
