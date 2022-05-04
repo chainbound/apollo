@@ -17,10 +17,14 @@ import (
 
 type ChainService struct {
 	client *ethclient.Client
+
+	defaultTimeout time.Duration
 }
 
-func NewChainService() *ChainService {
-	return &ChainService{}
+func NewChainService(defaultTimeout time.Duration) *ChainService {
+	return &ChainService{
+		defaultTimeout: defaultTimeout,
+	}
 }
 
 func (c *ChainService) Connect(ctx context.Context, rpcUrl string) (*ChainService, error) {
@@ -63,7 +67,7 @@ type CallResult struct {
 
 // RunMethodCaller starts a listener on the `blocks` channel, and on every incoming block it will execute all methods concurrently
 // on the given blockNumber.
-func (c *ChainService) RunMethodCaller(ctx context.Context, schema *generate.SchemaV2, realtime bool, blocks <-chan *big.Int, out chan<- CallResult, maxWorkers int) {
+func (c *ChainService) RunMethodCaller(schema *generate.SchemaV2, realtime bool, blocks <-chan *big.Int, out chan<- CallResult, maxWorkers int) {
 	res := make(chan CallResult)
 	var wg sync.WaitGroup
 
@@ -79,7 +83,7 @@ func (c *ChainService) RunMethodCaller(ctx context.Context, schema *generate.Sch
 				nworkers++
 
 				for _, contract := range schema.Contracts {
-					c.CallMethods(ctx, schema.Chain, contract, blockNumber, res)
+					c.CallMethods(schema.Chain, contract, blockNumber, res)
 				}
 			}(blockNumber)
 
@@ -111,7 +115,7 @@ func (c *ChainService) RunMethodCaller(ctx context.Context, schema *generate.Sch
 }
 
 // CallMethods executes all the methods on the contract, and aggregates their results into a CallResult
-func (c ChainService) CallMethods(ctx context.Context, chain generate.Chain, contract *generate.ContractSchemaV2, blockNumber *big.Int, out chan<- CallResult) {
+func (c ChainService) CallMethods(chain generate.Chain, contract *generate.ContractSchemaV2, blockNumber *big.Int, out chan<- CallResult) {
 	inputs := make(map[string]string)
 	outputs := make(map[string]any)
 
@@ -120,7 +124,11 @@ func (c ChainService) CallMethods(ctx context.Context, chain generate.Chain, con
 		return
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), c.defaultTimeout)
+	defer cancel()
+
 	for _, method := range contract.Methods() {
+
 		msg, err := generate.BuildCallMsg(contract.Address(), method, contract.Abi)
 		if err != nil {
 			out <- CallResult{
@@ -183,7 +191,7 @@ func (c ChainService) CallMethods(ctx context.Context, chain generate.Chain, con
 	}
 }
 
-func (c ChainService) FilterEvents(ctx context.Context, schema *generate.SchemaV2, fromBlock, toBlock *big.Int, out chan<- CallResult, maxWorkers int) {
+func (c ChainService) FilterEvents(schema *generate.SchemaV2, fromBlock, toBlock *big.Int, out chan<- CallResult, maxWorkers int) {
 	res := make(chan CallResult)
 	var wg sync.WaitGroup
 
@@ -214,6 +222,9 @@ func (c ChainService) FilterEvents(ctx context.Context, schema *generate.SchemaV
 						}
 					}
 				}
+
+				ctx, cancel := context.WithTimeout(context.Background(), c.defaultTimeout)
+				defer cancel()
 
 				// eth_getLogs allows for unlimited returned logs as long as the block range is <= 2000
 				blockRange := int64(2000)

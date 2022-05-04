@@ -193,16 +193,18 @@ func Run(opts ApolloOpts) error {
 		}
 	}
 
-	// Long timeout
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
-	defer cancel()
-
 	rpc, ok := cfg.Rpc[opts.chain]
 	if !ok {
 		return fmt.Errorf("no rpc defined for chain %s", opts.chain)
 	}
 
-	service, err := chainservice.NewChainService().Connect(ctx, rpc)
+	defaultTimeout := time.Second * 30
+
+	// Long timeout
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+
+	service, err := chainservice.NewChainService(defaultTimeout).Connect(ctx, rpc)
 	if err != nil {
 		return err
 	}
@@ -244,7 +246,7 @@ func Run(opts ApolloOpts) error {
 	blocks := make(chan *big.Int)
 	chainResults := make(chan chainservice.CallResult)
 
-	service.RunMethodCaller(context.Background(), schema, opts.realtime, blocks, chainResults, maxWorkers)
+	service.RunMethodCaller(schema, opts.realtime, blocks, chainResults, maxWorkers)
 
 	// Start main program loop
 	if opts.realtime {
@@ -264,14 +266,10 @@ func Run(opts ApolloOpts) error {
 		}()
 	}
 
-	// Long timeout
-	ctx, cancel = context.WithTimeout(context.Background(), time.Second*50)
-	defer cancel()
-
 	if opts.realtime {
 		fmt.Println("todo")
 	} else {
-		service.FilterEvents(ctx, schema, big.NewInt(opts.startBlock), big.NewInt(opts.endBlock), chainResults, maxWorkers)
+		service.FilterEvents(schema, big.NewInt(opts.startBlock), big.NewInt(opts.endBlock), chainResults, maxWorkers)
 	}
 
 	for res := range chainResults {

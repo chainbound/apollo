@@ -51,18 +51,19 @@ GLOBAL OPTIONS:
 4. The main program loop starts, executing the call messages in an interval
 5. The values are written to the tables
 
-## Example Schema
+## Schema
+### Methods Example
 ```yaml
 # Define the chain to run on
 chain: arbitrum
 
 # The contracts to populate tables for
 contracts:
-    # Address of the contract on corresponding chain (Arbitrum)
+    # Address of the contract
   - address: 0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8
-    # The name of the contract (will be the table name in the DB)
+    # The name of the contract (will be the table name in the DB and name of the CSV file)
     name: usdc
-    # ABI file path
+    # ABI file (in ~/.config/apollo)
     abi: erc20.abi.json
     # Methods we want to call (as a list)
     methods:
@@ -95,7 +96,23 @@ contracts:
           - roundId
           - updatedAt
 ```
+### Events Example
+```yaml
+# Define the chain to run on
+chain: arbitrum
 
-## Notes
-* Maybe in the future we could bypass the schema and just create an SQL chain query directly.
-Think of how Dune Analytics does it
+# The contracts to populate tables for
+contracts:
+    # Address of the contract on corresponding chain (Arbitrum)
+  - address: 0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8
+    # The name of the contract (will be the table name in the DB and name of CSV file)
+    name: usdc_transfer_events
+    # ABI file (in ~/.config/apollo)
+    abi: erc20.abi.json
+    events:
+      - name: Transfer
+        outputs:
+          - from
+          - to
+          - value
+```

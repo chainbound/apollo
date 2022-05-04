@@ -19,7 +19,7 @@ func newChainService() *ChainService {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 
-	c, err := NewChainService().Connect(ctx, rpcUrl)
+	c, err := NewChainService(time.Second*20).Connect(ctx, rpcUrl)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -46,7 +46,7 @@ func TestExecCallContracts(t *testing.T) {
 	blocks := make(chan *big.Int)
 
 	res := make(chan CallResult)
-	service.RunMethodCaller(context.Background(), schema, true, blocks, res, 10)
+	service.RunMethodCaller(schema, true, blocks, res, 10)
 
 	// Latest block, then close
 	blocks <- nil
