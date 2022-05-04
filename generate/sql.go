@@ -113,7 +113,7 @@ func GenerateColumns(cs ContractSchemaV2) ([]*Column, error) {
 
 	// The only dynamic table columns are the arguments and the return values
 	for _, call := range cs.Methods() {
-		for arg := range call.Args() {
+		for arg := range call.Inputs() {
 			columns = append(columns, &Column{
 				Name: arg,
 				// Type will be read from ABI

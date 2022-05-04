@@ -42,9 +42,17 @@ func (c ChainService) IsConnected() bool {
 	}
 }
 
+type ResultType int
+
+const (
+	Event ResultType = iota
+	Method
+)
+
 type CallResult struct {
 	Err             error
 	Chain           generate.Chain
+	Type            ResultType
 	ContractName    string
 	ContractAddress common.Address
 	BlockNumber     uint64
@@ -55,9 +63,8 @@ type CallResult struct {
 
 // RunMethodCaller starts a listener on the `blocks` channel, and on every incoming block it will execute all methods concurrently
 // on the given blockNumber.
-func (c *ChainService) RunMethodCaller(ctx context.Context, schema *generate.SchemaV2, realtime bool, blocks <-chan *big.Int, maxWorkers int) <-chan CallResult {
+func (c *ChainService) RunMethodCaller(ctx context.Context, schema *generate.SchemaV2, realtime bool, blocks <-chan *big.Int, out chan<- CallResult, maxWorkers int) {
 	res := make(chan CallResult)
-	out := make(chan CallResult)
 	var wg sync.WaitGroup
 
 	// TODO: worker pool for blocks (every 32 or something)
@@ -66,6 +73,7 @@ func (c *ChainService) RunMethodCaller(ctx context.Context, schema *generate.Sch
 		// For every incoming blockNumber, loop over contract methods and start a goroutine for each method.
 		// This way, every eth_call will happen concurrently.
 		for blockNumber := range blocks {
+			wg.Add(1)
 			go func(blockNumber *big.Int) {
 				defer wg.Done()
 				nworkers++
@@ -74,7 +82,6 @@ func (c *ChainService) RunMethodCaller(ctx context.Context, schema *generate.Sch
 					c.CallMethods(ctx, schema.Chain, contract, blockNumber, res)
 				}
 			}(blockNumber)
-			wg.Add(1)
 
 			if nworkers%maxWorkers == 0 {
 				wg.Wait()
@@ -88,7 +95,9 @@ func (c *ChainService) RunMethodCaller(ctx context.Context, schema *generate.Sch
 		close(res)
 	}()
 
-	// If we called more than one method, we want to aggregate the results
+	// If we're in realtime mode, add the current timestamp.
+	// Most blockchains have very rough Block.Timestamp updates,
+	// which are not realtime at all.
 	go func() {
 		for r := range res {
 			if realtime {
@@ -99,16 +108,20 @@ func (c *ChainService) RunMethodCaller(ctx context.Context, schema *generate.Sch
 		}
 		close(out)
 	}()
-
-	return out
 }
 
 // CallMethods executes all the methods on the contract, and aggregates their results into a CallResult
 func (c ChainService) CallMethods(ctx context.Context, chain generate.Chain, contract *generate.ContractSchemaV2, blockNumber *big.Int, out chan<- CallResult) {
 	inputs := make(map[string]string)
 	outputs := make(map[string]any)
+
+	// If there are no methods on the contract, return
+	if len(contract.Methods()) == 0 {
+		return
+	}
+
 	for _, method := range contract.Methods() {
-		msg, err := generate.BuildCallMsg(contract.Address, method, contract.Abi)
+		msg, err := generate.BuildCallMsg(contract.Address(), method, contract.Abi)
 		if err != nil {
 			out <- CallResult{
 				Err: err,
@@ -138,7 +151,7 @@ func (c ChainService) CallMethods(ctx context.Context, chain generate.Chain, con
 			outputs[o] = result
 		}
 
-		for k, v := range method.Args() {
+		for k, v := range method.Inputs() {
 			inputs[k] = v
 		}
 	}
@@ -159,30 +172,30 @@ func (c ChainService) CallMethods(ctx context.Context, chain generate.Chain, con
 	}
 
 	out <- CallResult{
+		Type:            Method,
 		BlockNumber:     actualBlockNumber,
 		Timestamp:       block.Time,
 		Chain:           chain,
 		ContractName:    contract.Name(),
-		ContractAddress: contract.Address,
+		ContractAddress: contract.Address(),
 		Inputs:          inputs,
 		Outputs:         outputs,
 	}
 }
 
-func (c ChainService) FilterEvents(ctx context.Context, schema *generate.SchemaV2, fromBlock, toBlock *big.Int, maxWorkers int) <-chan CallResult {
-	out := make(chan CallResult)
+func (c ChainService) FilterEvents(ctx context.Context, schema *generate.SchemaV2, fromBlock, toBlock *big.Int, out chan<- CallResult, maxWorkers int) {
+	res := make(chan CallResult)
 	var wg sync.WaitGroup
 
-	// TODO: worker pool for blocks (every 32 or something)
 	nworkers := 1
 	go func() {
-
 		for _, cs := range schema.Contracts {
 			for _, event := range cs.Events() {
+				// Get first topic in Bytes (to filter events)
 				topic, err := generate.GetTopic(event.Name(), cs.Abi)
 				if err != nil {
-					out <- CallResult{
-						Err: err,
+					res <- CallResult{
+						Err: fmt.Errorf("generating topic id: %w", err),
 					}
 					return
 				}
@@ -205,14 +218,14 @@ func (c ChainService) FilterEvents(ctx context.Context, schema *generate.SchemaV
 				logs, err := c.client.FilterLogs(ctx, ethereum.FilterQuery{
 					FromBlock: fromBlock,
 					ToBlock:   toBlock,
-					Addresses: []common.Address{cs.Address},
+					Addresses: []common.Address{cs.Address()},
 					Topics: [][]common.Hash{
 						{topic},
 					},
 				})
 
 				if err != nil {
-					out <- CallResult{
+					res <- CallResult{
 						Err: fmt.Errorf("getting logs from node: %w", err),
 					}
 					return
@@ -229,30 +242,30 @@ func (c ChainService) FilterEvents(ctx context.Context, schema *generate.SchemaV
 					if len(outputs) < len(event.Outputs()) {
 						err := cs.Abi.UnpackIntoMap(outputs, event.Name(), log.Data)
 						if err != nil {
-							out <- CallResult{
+							res <- CallResult{
 								Err: fmt.Errorf("unpacking log.Data: %w", err),
 							}
 							return
 						}
 					}
-					// fmt.Println(outputs)
 
 					go func(log types.Log) {
 						defer wg.Done()
 						h, err := c.client.HeaderByNumber(ctx, big.NewInt(int64(log.BlockNumber)))
 						if err != nil {
 							if err != nil {
-								out <- CallResult{
+								res <- CallResult{
 									Err: fmt.Errorf("getting block header: %w", err),
 								}
 								return
 							}
 						}
 
-						out <- CallResult{
+						res <- CallResult{
+							Type:            Event,
 							Chain:           schema.Chain,
 							ContractName:    cs.Name(),
-							ContractAddress: cs.Address,
+							ContractAddress: cs.Address(),
 							BlockNumber:     log.BlockNumber,
 							Timestamp:       h.Time,
 							Outputs:         outputs,
@@ -270,10 +283,17 @@ func (c ChainService) FilterEvents(ctx context.Context, schema *generate.SchemaV
 
 		wg.Wait()
 
-		close(out)
+		close(res)
 	}()
 
-	return out
+	// If we called more than one method, we want to aggregate the results
+	go func() {
+		for r := range res {
+			out <- r
+		}
+
+		// close(out)
+	}()
 }
 
 func matchABIValue(outputName string, outputs abi.Arguments, results []any) any {

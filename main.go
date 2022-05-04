@@ -91,9 +91,20 @@ func main() {
 		},
 	}
 
+	validateOpts(opts)
+
 	err := app.Run(os.Args)
 	if err != nil {
 		log.Fatal(err)
+	}
+}
+
+func validateOpts(opts ApolloOpts) {
+	switch {
+	case opts.endBlock != 0:
+		if opts.interval == 0 {
+			log.Fatal("need interval for historical mode")
+		}
 	}
 }
 
@@ -114,6 +125,11 @@ func Run(opts ApolloOpts) error {
 	schema, err := generate.ParseV2("schema.v2.yml")
 	if err != nil {
 		return err
+	}
+
+	// Validate the schema
+	if err := schema.Validate(); err != nil {
+		log.Fatal(err)
 	}
 
 	if opts.db {
@@ -172,7 +188,9 @@ func Run(opts ApolloOpts) error {
 	// First check if there are any methods to be called, it might just be events
 	maxWorkers := 16
 	blocks := make(chan *big.Int)
-	res := service.RunMethodCaller(context.Background(), schema, opts.realtime, blocks, maxWorkers)
+	chainResults := make(chan chainservice.CallResult)
+
+	service.RunMethodCaller(context.Background(), schema, opts.realtime, blocks, chainResults, maxWorkers)
 
 	// Start main program loop
 	if opts.realtime {
@@ -195,14 +213,13 @@ func Run(opts ApolloOpts) error {
 	ctx, cancel = context.WithTimeout(context.Background(), time.Second*50)
 	defer cancel()
 
-	// IF events
 	if opts.realtime {
 		fmt.Println("todo")
 	} else {
-		res = service.FilterEvents(ctx, schema, big.NewInt(opts.startBlock), big.NewInt(opts.endBlock), maxWorkers)
+		service.FilterEvents(ctx, schema, big.NewInt(opts.startBlock), big.NewInt(opts.endBlock), chainResults, maxWorkers)
 	}
 
-	for res := range res {
+	for res := range chainResults {
 		if res.Err != nil {
 			fmt.Println(res.Err)
 			continue

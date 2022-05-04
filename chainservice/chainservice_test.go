@@ -45,7 +45,8 @@ func TestExecCallContracts(t *testing.T) {
 
 	blocks := make(chan *big.Int)
 
-	res := service.RunMethodCaller(context.Background(), schema, true, blocks, 10)
+	res := make(chan CallResult)
+	service.RunMethodCaller(context.Background(), schema, true, blocks, res, 10)
 
 	// Latest block, then close
 	blocks <- nil
