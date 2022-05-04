@@ -140,7 +140,8 @@ func Run(opts ApolloOpts) error {
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	// Long timeout
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 
 	rpc, ok := cfg.Rpc[opts.chain]
@@ -210,6 +211,7 @@ func Run(opts ApolloOpts) error {
 		}()
 	}
 
+	// Long timeout
 	ctx, cancel = context.WithTimeout(context.Background(), time.Second*50)
 	defer cancel()
 

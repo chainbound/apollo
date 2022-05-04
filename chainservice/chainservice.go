@@ -215,69 +215,72 @@ func (c ChainService) FilterEvents(ctx context.Context, schema *generate.SchemaV
 					}
 				}
 
-				logs, err := c.client.FilterLogs(ctx, ethereum.FilterQuery{
-					FromBlock: fromBlock,
-					ToBlock:   toBlock,
-					Addresses: []common.Address{cs.Address()},
-					Topics: [][]common.Hash{
-						{topic},
-					},
-				})
+				// eth_getLogs allows for unlimited returned logs as long as the block range is <= 2000
+				blockRange := int64(2000)
+				for i := fromBlock.Int64(); i < toBlock.Int64(); i += blockRange {
+					logs, err := c.client.FilterLogs(ctx, ethereum.FilterQuery{
+						FromBlock: big.NewInt(i),
+						ToBlock:   big.NewInt(i + blockRange),
+						Addresses: []common.Address{cs.Address()},
+						Topics: [][]common.Hash{
+							{topic},
+						},
+					})
 
-				if err != nil {
-					res <- CallResult{
-						Err: fmt.Errorf("getting logs from node: %w", err),
-					}
-					return
-				}
-
-				for _, log := range logs {
-					outputs := make(map[string]any)
-					for _, event := range event.Outputs() {
-						if idx, ok := indexedEvents[event]; ok {
-							outputs[event] = common.BytesToAddress(log.Topics[idx][:])
+					if err != nil {
+						res <- CallResult{
+							Err: fmt.Errorf("getting logs from node: %w", err),
 						}
+						return
 					}
 
-					if len(outputs) < len(event.Outputs()) {
-						err := cs.Abi.UnpackIntoMap(outputs, event.Name(), log.Data)
-						if err != nil {
-							res <- CallResult{
-								Err: fmt.Errorf("unpacking log.Data: %w", err),
+					for _, log := range logs {
+						outputs := make(map[string]any)
+						for _, event := range event.Outputs() {
+							if idx, ok := indexedEvents[event]; ok {
+								outputs[event] = common.BytesToAddress(log.Topics[idx][:])
 							}
-							return
 						}
-					}
 
-					go func(log types.Log) {
-						defer wg.Done()
-						h, err := c.client.HeaderByNumber(ctx, big.NewInt(int64(log.BlockNumber)))
-						if err != nil {
+						if len(outputs) < len(event.Outputs()) {
+							err := cs.Abi.UnpackIntoMap(outputs, event.Name(), log.Data)
 							if err != nil {
 								res <- CallResult{
-									Err: fmt.Errorf("getting block header: %w", err),
+									Err: fmt.Errorf("unpacking log.Data: %w", err),
 								}
 								return
 							}
 						}
 
-						res <- CallResult{
-							Type:            Event,
-							Chain:           schema.Chain,
-							ContractName:    cs.Name(),
-							ContractAddress: cs.Address(),
-							BlockNumber:     log.BlockNumber,
-							Timestamp:       h.Time,
-							Outputs:         outputs,
-						}
-					}(log)
-					wg.Add(1)
+						go func(log types.Log) {
+							defer wg.Done()
+							h, err := c.client.HeaderByNumber(ctx, big.NewInt(int64(log.BlockNumber)))
+							if err != nil {
+								if err != nil {
+									res <- CallResult{
+										Err: fmt.Errorf("getting block header: %w", err),
+									}
+									return
+								}
+							}
 
-					if nworkers%maxWorkers == 0 {
-						wg.Wait()
+							res <- CallResult{
+								Type:            Event,
+								Chain:           schema.Chain,
+								ContractName:    cs.Name(),
+								ContractAddress: cs.Address(),
+								BlockNumber:     log.BlockNumber,
+								Timestamp:       h.Time,
+								Outputs:         outputs,
+							}
+						}(log)
+						wg.Add(1)
+
+						if nworkers%maxWorkers == 0 {
+							wg.Wait()
+						}
 					}
 				}
-
 			}
 		}
 
