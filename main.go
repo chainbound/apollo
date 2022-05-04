@@ -6,17 +6,16 @@ import (
 	"log"
 	"math/big"
 	"os"
+	"path"
 	"time"
+
+	_ "embed"
 
 	"github.com/XMonetae-DeFi/apollo/chainservice"
 	"github.com/XMonetae-DeFi/apollo/db"
 	"github.com/XMonetae-DeFi/apollo/generate"
 	"github.com/XMonetae-DeFi/apollo/output"
 	"github.com/urfave/cli/v2"
-)
-
-const (
-	rpcUrl = "wss://arb-mainnet.g.alchemy.com/v2/5_JWUuiS1cewWFpLzRxdjgZM0yLA4Uqp"
 )
 
 // Main program options, provided as cli arguments
@@ -30,6 +29,12 @@ type ApolloOpts struct {
 	endBlock   int64
 	chain      string
 }
+
+//go:embed config.yml
+var cfg []byte
+
+//go:embed schema.v2.yml
+var schema []byte
 
 func main() {
 	var opts ApolloOpts
@@ -81,8 +86,20 @@ func main() {
 				Name:        "chain",
 				Aliases:     []string{"c"},
 				Usage:       "The chain name",
-				Required:    true,
 				Destination: &opts.chain,
+			},
+		},
+		Commands: []*cli.Command{
+			{
+				Name:  "init",
+				Usage: "Initialize apollo by creating the configs",
+				Action: func(c *cli.Context) error {
+					if err := Init(); err != nil {
+						return err
+					}
+
+					return nil
+				},
 			},
 		},
 		Action: func(c *cli.Context) error {
@@ -112,17 +129,51 @@ type OutputHandler interface {
 	HandleResult(chainservice.CallResult) error
 }
 
-func Run(opts ApolloOpts) error {
-	var (
-		pdb *db.DB
-	)
-
-	cfg, err := NewConfig("config.yml")
+func Init() error {
+	p, err := os.UserConfigDir()
 	if err != nil {
 		return err
 	}
 
-	schema, err := generate.ParseV2("schema.v2.yml")
+	dirPath := path.Join(p, "apollo")
+	_, err = os.Stat(dirPath)
+	if os.IsNotExist(err) {
+		err := os.MkdirAll(dirPath, 0744)
+		if err != nil {
+			return err
+		}
+	}
+
+	configPath := path.Join(dirPath, "config.yml")
+	if err := os.WriteFile(configPath, cfg, 0644); err != nil {
+		return err
+	}
+
+	schemaPath := path.Join(dirPath, "schema.yml")
+	if err := os.WriteFile(schemaPath, schema, 0644); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func Run(opts ApolloOpts) error {
+	var pdb *db.DB
+
+	confDir, err := os.UserConfigDir()
+	if err != nil {
+		return err
+	}
+
+	confDir = path.Join(confDir, "apollo")
+	confPath := path.Join(confDir, "config.yml")
+
+	cfg, err := NewConfig(confPath)
+	if err != nil {
+		return err
+	}
+
+	schema, err := generate.ParseV2(confDir)
 	if err != nil {
 		return err
 	}

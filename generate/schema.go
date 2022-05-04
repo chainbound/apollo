@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -109,10 +110,12 @@ func (e EventV2) Outputs() []string {
 	return e.Outputs_
 }
 
-func ParseV2(path string) (*SchemaV2, error) {
+func ParseV2(confDir string) (*SchemaV2, error) {
 	var schema SchemaV2
 
-	file, err := os.ReadFile(path)
+	schemaPath := path.Join(confDir, "schema.yml")
+
+	file, err := os.ReadFile(schemaPath)
 	if err != nil {
 		return nil, fmt.Errorf("ParseV2: reading file: %w", err)
 	}
@@ -122,8 +125,7 @@ func ParseV2(path string) (*SchemaV2, error) {
 	}
 
 	for _, contract := range schema.Contracts {
-		// TODO: path should be steady (use set config path)
-		f, err := os.Open(contract.AbiPath)
+		f, err := os.Open(path.Join(confDir, contract.AbiPath))
 		if err != nil {
 			return nil, fmt.Errorf("ParseV2: reading ABI file: %w", err)
 		}

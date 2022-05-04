@@ -44,7 +44,7 @@ GLOBAL OPTIONS:
 5. The values are written to the tables
 
 ## Example Schema
-```yml
+```yaml
 # Define the chain to run on
 chain: arbitrum
 
