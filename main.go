@@ -27,6 +27,7 @@ type ApolloOpts struct {
 	interval   int64
 	startBlock int64
 	endBlock   int64
+	rateLimit  int
 	chain      string
 }
 
@@ -81,6 +82,11 @@ func main() {
 				Aliases:     []string{"e"},
 				Usage:       "End block number for historical analysis",
 				Destination: &opts.endBlock,
+			},
+			&cli.IntFlag{
+				Name:        "rate-limit",
+				Usage:       "Rate limit `LEVEL`, from 1 - 5",
+				Destination: &opts.rateLimit,
 			},
 			&cli.StringFlag{
 				Name:        "chain",
@@ -246,7 +252,7 @@ func Run(opts ApolloOpts) error {
 	}
 
 	// First check if there are any methods to be called, it might just be events
-	maxWorkers := 32
+	maxWorkers := 25 / opts.rateLimit
 	blocks := make(chan *big.Int)
 	chainResults := make(chan chainservice.CallResult)
 
