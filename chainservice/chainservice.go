@@ -19,11 +19,13 @@ type ChainService struct {
 	client *ethclient.Client
 
 	defaultTimeout time.Duration
+	rateLimit      int
 }
 
-func NewChainService(defaultTimeout time.Duration) *ChainService {
+func NewChainService(defaultTimeout time.Duration, rateLimit int) *ChainService {
 	return &ChainService{
 		defaultTimeout: defaultTimeout,
+		rateLimit:      rateLimit,
 	}
 }
 
@@ -161,6 +163,7 @@ func (c ChainService) CallMethods(chain generate.Chain, contract *generate.Contr
 		for k, v := range method.Inputs() {
 			inputs[k] = v
 		}
+		time.Sleep(time.Duration(c.rateLimit*10) * time.Millisecond)
 	}
 
 	actualBlockNumber := uint64(0)
@@ -261,6 +264,7 @@ func (c ChainService) FilterEvents(schema *generate.SchemaV2, fromBlock, toBlock
 							}
 
 							res <- *result
+							time.Sleep(time.Duration(c.rateLimit*10) * time.Millisecond)
 						}(log)
 
 						if nworkers%maxWorkers == 0 {

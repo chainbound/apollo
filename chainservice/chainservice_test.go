@@ -19,7 +19,7 @@ func newChainService() *ChainService {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 
-	c, err := NewChainService(time.Second*20).Connect(ctx, rpcUrl)
+	c, err := NewChainService(time.Second*20, 5).Connect(ctx, rpcUrl)
 	if err != nil {
 		log.Fatal(err)
 	}

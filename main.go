@@ -214,7 +214,7 @@ func Run(opts ApolloOpts) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 
-	service, err := chainservice.NewChainService(defaultTimeout).Connect(ctx, rpc)
+	service, err := chainservice.NewChainService(defaultTimeout, opts.rateLimit).Connect(ctx, rpc)
 	if err != nil {
 		return err
 	}
@@ -252,7 +252,7 @@ func Run(opts ApolloOpts) error {
 	}
 
 	// First check if there are any methods to be called, it might just be events
-	maxWorkers := 25 / opts.rateLimit
+	maxWorkers := 32
 	blocks := make(chan *big.Int)
 	chainResults := make(chan chainservice.CallResult)
 
