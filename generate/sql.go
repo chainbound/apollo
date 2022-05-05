@@ -29,13 +29,9 @@ func GenerateCreateDDL(schema ContractSchemaV2) (string, error) {
 
 	ddl := fmt.Sprintf("DROP TABLE IF EXISTS %s;\n", schema.Name())
 
-	ddl += fmt.Sprintf("CREATE TABLE %s (\n", schema.Name())
+	ddl += fmt.Sprintf("CREATE TABLE %s (\n\tid SERIAL PRIMARY KEY,\n", schema.Name())
 	for _, col := range columns {
-		if col.Name == "timestamp" {
-			ddl += fmt.Sprintf("\t%s %s PRIMARY KEY,\n", col.Name, col.Type)
-		} else {
-			ddl += fmt.Sprintf("\t%s %s,\n", col.Name, col.Type)
-		}
+		ddl += fmt.Sprintf("\t%s %s,\n", col.Name, col.Type)
 	}
 
 	ddl = strings.TrimSuffix(ddl, ",\n")

@@ -29,7 +29,7 @@ func ABIToSQLType(abiType ABIType) string {
 	}
 
 	// By default, return BIGINT
-	return "BIGINT"
+	return "NUMERIC"
 }
 
 func ABIToGoType(abiType ABIType, val string) any {

@@ -246,7 +246,7 @@ func Run(opts ApolloOpts) error {
 	}
 
 	// First check if there are any methods to be called, it might just be events
-	maxWorkers := 8
+	maxWorkers := 32
 	blocks := make(chan *big.Int)
 	chainResults := make(chan chainservice.CallResult)
 

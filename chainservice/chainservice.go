@@ -248,55 +248,20 @@ func (c ChainService) FilterEvents(schema *generate.SchemaV2, fromBlock, toBlock
 					}
 
 					for _, log := range logs {
-						ctx, cancel = context.WithTimeout(context.Background(), c.defaultTimeout)
-						defer cancel()
-
-						outputs := make(map[string]string)
-						for _, event := range event.Outputs() {
-							if idx, ok := indexedEvents[event]; ok {
-								outputs[event] = fmt.Sprint(common.BytesToAddress(log.Topics[idx][:]))
-							}
-						}
-
-						tmp := make(map[string]any)
-						if len(outputs) < len(event.Outputs()) {
-							err := cs.Abi.UnpackIntoMap(tmp, event.Name(), log.Data)
-							if err != nil {
-								res <- CallResult{
-									Err: fmt.Errorf("unpacking log.Data: %w", err),
-								}
-								return
-							}
-						}
-
-						for k, v := range tmp {
-							outputs[k] = fmt.Sprint(v)
-						}
-
+						wg.Add(1)
 						nworkers++
 						go func(log types.Log) {
 							defer wg.Done()
-							h, err := c.client.HeaderByNumber(ctx, big.NewInt(int64(log.BlockNumber)))
+							result, err := c.HandleLog(log, schema.Chain, cs, event, indexedEvents)
 							if err != nil {
-								if err != nil {
-									res <- CallResult{
-										Err: fmt.Errorf("getting block header: %w", err),
-									}
-									return
+								res <- CallResult{
+									Err: fmt.Errorf("handling log: %w", err),
 								}
+								return
 							}
 
-							res <- CallResult{
-								Type:            Event,
-								Chain:           schema.Chain,
-								ContractName:    cs.Name(),
-								ContractAddress: cs.Address(),
-								BlockNumber:     log.BlockNumber,
-								Timestamp:       h.Time,
-								Outputs:         outputs,
-							}
+							res <- *result
 						}(log)
-						wg.Add(1)
 
 						if nworkers%maxWorkers == 0 {
 							wg.Wait()
