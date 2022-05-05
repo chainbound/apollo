@@ -225,14 +225,14 @@ func (c ChainService) FilterEvents(schema *generate.SchemaV2, fromBlock, toBlock
 					}
 				}
 
-				ctx, cancel := context.WithTimeout(context.Background(), c.defaultTimeout)
-				defer cancel()
-
 				// NOTE: eth_getLogs allows for unlimited returned logs as long as the block range is <= 2000,
 				// but at a block range of 2000, we're going to need a lot of requests. For now we can try to run
 				// it with this hardcoded value, but we might need to read it from a config / implement a retry pattern.
 				blockRange := int64(4096)
 				for i := fromBlock.Int64(); i < toBlock.Int64(); i += blockRange {
+					ctx, cancel := context.WithTimeout(context.Background(), c.defaultTimeout)
+					defer cancel()
+
 					start, end := big.NewInt(i), big.NewInt(i+blockRange-1)
 					logs, err := c.client.FilterLogs(ctx, ethereum.FilterQuery{
 						FromBlock: start,
