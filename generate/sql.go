@@ -27,7 +27,9 @@ func GenerateDDL(schema ContractSchemaV2) (string, error) {
 		columns = AddColumnTypesFromABI(e.Name(), schema.Abi, columns)
 	}
 
-	ddl := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (\n", schema.Name())
+	ddl := fmt.Sprintf("DROP TABLE IF EXISTS %s;\n", schema.Name())
+
+	ddl += fmt.Sprintf("CREATE TABLE %s (\n", schema.Name())
 	for _, col := range columns {
 		if col.Name == "timestamp" {
 			ddl += fmt.Sprintf("\t%s %s PRIMARY KEY,\n", col.Name, col.Type)

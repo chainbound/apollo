@@ -36,7 +36,7 @@ func TestConnect(t *testing.T) {
 }
 
 func TestExecCallContracts(t *testing.T) {
-	schema, err := generate.ParseV2("../schema.v2.yml")
+	schema, err := generate.ParseV2("./test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,4 +62,52 @@ func TestExecCallContracts(t *testing.T) {
 			fmt.Println(k, ":", v)
 		}
 	}
+}
+
+// func TestFilterEvents(t *testing.T) {
+// 	schema, err := generate.ParseV2("./test")
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+
+// 	service := newChainService()
+// 	res := make(chan CallResult)
+// 	maxWorkers := 32
+
+// 	service.FilterEvents(schema, big.NewInt(10000000), big.NewInt(10000500), res, maxWorkers)
+
+// 	count := 0
+// 	for r := range res {
+// 		if r.Err != nil {
+// 			fmt.Println(r.Err)
+// 			continue
+// 		}
+
+// 		fmt.Println(r)
+// 		count++
+// 		fmt.Println(count)
+// 	}
+// }
+
+func TestListenForEvents(t *testing.T) {
+	schema, err := generate.ParseV2("./test")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	service := newChainService()
+	res := make(chan CallResult)
+	maxWorkers := 32
+
+	service.ListenForEvents(schema, res, maxWorkers)
+
+	for r := range res {
+		if r.Err != nil {
+			fmt.Println(r.Err)
+			continue
+		}
+
+		fmt.Println(r)
+	}
+
 }

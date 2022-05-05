@@ -59,6 +59,7 @@ func (db *DB) IsConnected() bool {
 	}
 }
 
+// CreateTable drop and creates the table if it exists, otherwise just creates it.
 func (db DB) CreateTable(ctx context.Context, s generate.ContractSchemaV2) error {
 	ddl, err := generate.GenerateDDL(s)
 	if err != nil {

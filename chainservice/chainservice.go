@@ -226,12 +226,15 @@ func (c ChainService) FilterEvents(schema *generate.SchemaV2, fromBlock, toBlock
 				ctx, cancel := context.WithTimeout(context.Background(), c.defaultTimeout)
 				defer cancel()
 
-				// eth_getLogs allows for unlimited returned logs as long as the block range is <= 2000
-				blockRange := int64(2000)
+				// NOTE: eth_getLogs allows for unlimited returned logs as long as the block range is <= 2000,
+				// but at a block range of 2000, we're going to need a lot of requests. For now we can try to run
+				// it with this hardcoded value, but we might need to read it from a config / implement a retry pattern.
+				blockRange := int64(4096)
 				for i := fromBlock.Int64(); i < toBlock.Int64(); i += blockRange {
+					start, end := big.NewInt(i), big.NewInt(i+blockRange-1)
 					logs, err := c.client.FilterLogs(ctx, ethereum.FilterQuery{
-						FromBlock: big.NewInt(i),
-						ToBlock:   big.NewInt(i + blockRange),
+						FromBlock: start,
+						ToBlock:   end,
 						Addresses: []common.Address{cs.Address()},
 						Topics: [][]common.Hash{
 							{topic},
@@ -266,6 +269,7 @@ func (c ChainService) FilterEvents(schema *generate.SchemaV2, fromBlock, toBlock
 							}
 						}
 
+						nworkers++
 						go func(log types.Log) {
 							defer wg.Done()
 							h, err := c.client.HeaderByNumber(ctx, big.NewInt(int64(log.BlockNumber)))
@@ -309,8 +313,133 @@ func (c ChainService) FilterEvents(schema *generate.SchemaV2, fromBlock, toBlock
 			out <- r
 		}
 
-		// close(out)
+		close(out)
 	}()
+}
+
+func (c ChainService) ListenForEvents(schema *generate.SchemaV2, out chan<- CallResult, maxWorkers int) {
+	res := make(chan CallResult)
+	logChan := make(chan types.Log)
+	var wg sync.WaitGroup
+
+	nworkers := 1
+	go func() {
+		for _, cs := range schema.Contracts {
+			for _, event := range cs.Events() {
+				// Get first topic in Bytes (to filter events)
+				topic, err := generate.GetTopic(event.Name(), cs.Abi)
+				if err != nil {
+					res <- CallResult{
+						Err: fmt.Errorf("generating topic id: %w", err),
+					}
+					return
+				}
+
+				indexedEvents := make(map[string]int)
+				abiEvent := cs.Abi.Events[event.Name()]
+
+				// Collect the indexes for the events that are "indexed" (they appear in the "topics" of the log)
+				for i, arg := range abiEvent.Inputs {
+					if arg.Indexed {
+						for _, o := range event.Outputs() {
+							if arg.Name == o {
+								// First index is always the main topic
+								indexedEvents[arg.Name] = i + 1
+							}
+						}
+					}
+				}
+
+				ctx, cancel := context.WithTimeout(context.Background(), c.defaultTimeout)
+				defer cancel()
+
+				sub, err := c.client.SubscribeFilterLogs(ctx, ethereum.FilterQuery{
+					Addresses: []common.Address{cs.Address()},
+					Topics: [][]common.Hash{
+						{topic},
+					},
+				}, logChan)
+				if err != nil {
+					res <- CallResult{
+						Err: fmt.Errorf("subscribing to logs: %w", err),
+					}
+					return
+				}
+
+				defer sub.Unsubscribe()
+
+				for log := range logChan {
+					wg.Add(1)
+					nworkers++
+					go func(log types.Log) {
+						defer wg.Done()
+						result, err := c.HandleLog(log, schema.Chain, cs, event, indexedEvents)
+						if err != nil {
+							res <- CallResult{
+								Err: fmt.Errorf("handling log: %w", err),
+							}
+							return
+						}
+
+						res <- *result
+					}(log)
+
+					if nworkers%maxWorkers == 0 {
+						wg.Wait()
+					}
+				}
+			}
+		}
+	}()
+
+	// If we're in realtime mode, add the current timestamp.
+	// Most blockchains have very rough Block.Timestamp updates,
+	// which are not realtime at all.
+	go func() {
+		for r := range res {
+			r.Timestamp = uint64(time.Now().UnixMilli() / 1000)
+
+			out <- r
+		}
+
+		close(out)
+	}()
+}
+
+func (c ChainService) HandleLog(log types.Log, chain generate.Chain, cs *generate.ContractSchemaV2, event generate.EventV2, indexedEvents map[string]int) (*CallResult, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), c.defaultTimeout)
+	defer cancel()
+
+	outputs := make(map[string]any)
+	for _, event := range event.Outputs() {
+		if idx, ok := indexedEvents[event]; ok {
+			outputs[event] = common.BytesToAddress(log.Topics[idx][:])
+		}
+	}
+
+	if len(outputs) < len(event.Outputs()) {
+		err := cs.Abi.UnpackIntoMap(outputs, event.Name(), log.Data)
+		if err != nil {
+			return nil, fmt.Errorf("unpacking log.Data: %w", err)
+		}
+	}
+
+	h, err := c.client.HeaderByNumber(ctx, big.NewInt(int64(log.BlockNumber)))
+	if err != nil {
+		if err != nil {
+			return nil, fmt.Errorf("getting block header: %w", err)
+		}
+	}
+
+	return &CallResult{
+		Type:            Event,
+		Chain:           chain,
+		ContractName:    cs.Name(),
+		ContractAddress: cs.Address(),
+		BlockNumber:     log.BlockNumber,
+		Timestamp:       h.Time,
+		Outputs:         outputs,
+	}, nil
 }
 
 func matchABIValue(outputName string, outputs abi.Arguments, results []any) any {

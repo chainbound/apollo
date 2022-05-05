@@ -162,13 +162,15 @@ func Init() error {
 func Run(opts ApolloOpts) error {
 	var pdb *db.DB
 
-	confDir, err := os.UserConfigDir()
+	confDir, err := ConfigDir()
 	if err != nil {
 		return err
 	}
 
-	confDir = path.Join(confDir, "apollo")
-	confPath := path.Join(confDir, "config.yml")
+	confPath, err := ConfigPath()
+	if err != nil {
+		return err
+	}
 
 	cfg, err := NewConfig(confPath)
 	if err != nil {
@@ -267,7 +269,7 @@ func Run(opts ApolloOpts) error {
 	}
 
 	if opts.realtime {
-		fmt.Println("todo")
+		service.ListenForEvents(schema, chainResults, maxWorkers)
 	} else {
 		service.FilterEvents(schema, big.NewInt(opts.startBlock), big.NewInt(opts.endBlock), chainResults, maxWorkers)
 	}

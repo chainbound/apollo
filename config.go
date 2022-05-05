@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"path"
 
 	"github.com/XMonetae-DeFi/apollo/db"
 	"gopkg.in/yaml.v2"
@@ -25,4 +26,31 @@ func NewConfig(path string) (*Config, error) {
 	}
 
 	return &c, nil
+}
+
+func ConfigDir() (string, error) {
+	confDir, err := os.UserConfigDir()
+	if err != nil {
+		return "", err
+	}
+
+	return path.Join(confDir, "apollo", "config.yml"), nil
+}
+
+func ConfigPath() (string, error) {
+	confDir, err := os.UserConfigDir()
+	if err != nil {
+		return "", err
+	}
+
+	return path.Join(confDir, "apollo"), nil
+}
+
+func SchemaPath() (string, error) {
+	confDir, err := os.UserConfigDir()
+	if err != nil {
+		return "", err
+	}
+
+	return path.Join(confDir, "apollo", "schema.yml"), nil
 }
