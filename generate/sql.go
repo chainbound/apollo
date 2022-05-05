@@ -13,7 +13,7 @@ type Column struct {
 	Final bool // utility flag for setting types, finalized when type is known
 }
 
-func GenerateDDL(schema ContractSchemaV2) (string, error) {
+func GenerateCreateDDL(schema ContractSchemaV2) (string, error) {
 	columns, err := GenerateColumns(schema)
 	if err != nil {
 		return "", err
@@ -42,6 +42,21 @@ func GenerateDDL(schema ContractSchemaV2) (string, error) {
 	ddl += "\n);"
 
 	return ddl, nil
+}
+
+func GenerateInsertSQL(tableName string, toInsert map[string]string) string {
+	columns := "("
+	values := "("
+
+	for col, val := range toInsert {
+		columns += col + ","
+		values += val + ","
+	}
+
+	columns = strings.TrimSuffix(columns, ",") + ")"
+	values = strings.TrimSuffix(values, ",") + ")"
+
+	return fmt.Sprintf("INSERT INTO %s %s VALUES %s;", tableName, columns, values)
 }
 
 // AddColumnTypesFromABI cross-references the name ("event" or "method") with the ABI,

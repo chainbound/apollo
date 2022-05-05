@@ -6,7 +6,7 @@ import (
 )
 
 func TestGenerateCsvHeaders(t *testing.T) {
-	schema, err := ParseV2("../schema.v2.yml")
+	schema, err := ParseV2("../test")
 	if err != nil {
 		t.Fatal(err)
 	}

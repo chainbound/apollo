@@ -10,7 +10,7 @@ import (
 )
 
 func TestBuildInput(t *testing.T) {
-	schema, err := ParseV2("../schema.v2.yml")
+	schema, err := ParseV2("../test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -20,7 +20,7 @@ func TestBuildInput(t *testing.T) {
 	}
 
 	method := schema.Contracts[0].Methods()[0]
-	file, err := os.Open("../feed.abi.json")
+	file, err := os.Open("../test/erc20.abi.json")
 	if err != nil {
 		t.Fatal(err)
 	}

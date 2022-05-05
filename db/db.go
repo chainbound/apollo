@@ -61,7 +61,7 @@ func (db *DB) IsConnected() bool {
 
 // CreateTable drop and creates the table if it exists, otherwise just creates it.
 func (db DB) CreateTable(ctx context.Context, s generate.ContractSchemaV2) error {
-	ddl, err := generate.GenerateDDL(s)
+	ddl, err := generate.GenerateCreateDDL(s)
 	if err != nil {
 		return err
 	}
@@ -73,10 +73,26 @@ func (db DB) CreateTable(ctx context.Context, s generate.ContractSchemaV2) error
 }
 
 func (db DB) InsertResult(ctx context.Context, res chainservice.CallResult) error {
-	// _, err := db.pdb.ExecContext(ctx, ddl)
-	// if err != nil {
-	// 	return err
-	// }
-	// return nil
+	toInsert := map[string]string{
+		"timestamp":   fmt.Sprint(res.Timestamp),
+		"blocknumber": fmt.Sprint(res.BlockNumber),
+		"chain":       string(res.Chain),
+		"contract":    res.ContractAddress.String(),
+	}
+
+	for k, v := range res.Inputs {
+		toInsert[k] = v
+	}
+
+	for k, v := range res.Outputs {
+		toInsert[k] = v
+	}
+
+	ddl := generate.GenerateInsertSQL(res.ContractName, toInsert)
+
+	_, err := db.pdb.ExecContext(ctx, ddl)
+	if err != nil {
+		return err
+	}
 	return nil
 }

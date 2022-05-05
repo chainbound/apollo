@@ -62,7 +62,7 @@ type CallResult struct {
 	BlockNumber     uint64
 	Timestamp       uint64
 	Inputs          map[string]string
-	Outputs         map[string]any
+	Outputs         map[string]string
 }
 
 // RunMethodCaller starts a listener on the `blocks` channel, and on every incoming block it will execute all methods concurrently
@@ -71,7 +71,6 @@ func (c *ChainService) RunMethodCaller(schema *generate.SchemaV2, realtime bool,
 	res := make(chan CallResult)
 	var wg sync.WaitGroup
 
-	// TODO: worker pool for blocks (every 32 or something)
 	nworkers := 1
 	go func() {
 		// For every incoming blockNumber, loop over contract methods and start a goroutine for each method.
@@ -117,7 +116,7 @@ func (c *ChainService) RunMethodCaller(schema *generate.SchemaV2, realtime bool,
 // CallMethods executes all the methods on the contract, and aggregates their results into a CallResult
 func (c ChainService) CallMethods(chain generate.Chain, contract *generate.ContractSchemaV2, blockNumber *big.Int, out chan<- CallResult) {
 	inputs := make(map[string]string)
-	outputs := make(map[string]any)
+	outputs := make(map[string]string)
 
 	// If there are no methods on the contract, return
 	if len(contract.Methods()) == 0 {
@@ -156,7 +155,7 @@ func (c ChainService) CallMethods(chain generate.Chain, contract *generate.Contr
 
 		for _, o := range method.Outputs() {
 			result := matchABIValue(o, contract.Abi.Methods[method.Name()].Outputs, results)
-			outputs[o] = result
+			outputs[o] = fmt.Sprint(result)
 		}
 
 		for k, v := range method.Inputs() {
@@ -252,21 +251,26 @@ func (c ChainService) FilterEvents(schema *generate.SchemaV2, fromBlock, toBlock
 						ctx, cancel = context.WithTimeout(context.Background(), c.defaultTimeout)
 						defer cancel()
 
-						outputs := make(map[string]any)
+						outputs := make(map[string]string)
 						for _, event := range event.Outputs() {
 							if idx, ok := indexedEvents[event]; ok {
-								outputs[event] = common.BytesToAddress(log.Topics[idx][:])
+								outputs[event] = fmt.Sprint(common.BytesToAddress(log.Topics[idx][:]))
 							}
 						}
 
+						tmp := make(map[string]any)
 						if len(outputs) < len(event.Outputs()) {
-							err := cs.Abi.UnpackIntoMap(outputs, event.Name(), log.Data)
+							err := cs.Abi.UnpackIntoMap(tmp, event.Name(), log.Data)
 							if err != nil {
 								res <- CallResult{
 									Err: fmt.Errorf("unpacking log.Data: %w", err),
 								}
 								return
 							}
+						}
+
+						for k, v := range tmp {
+							outputs[k] = fmt.Sprint(v)
 						}
 
 						nworkers++
@@ -410,18 +414,23 @@ func (c ChainService) HandleLog(log types.Log, chain generate.Chain, cs *generat
 	ctx, cancel := context.WithTimeout(context.Background(), c.defaultTimeout)
 	defer cancel()
 
-	outputs := make(map[string]any)
+	outputs := make(map[string]string)
 	for _, event := range event.Outputs() {
 		if idx, ok := indexedEvents[event]; ok {
-			outputs[event] = common.BytesToAddress(log.Topics[idx][:])
+			outputs[event] = fmt.Sprint(common.BytesToAddress(log.Topics[idx][:]))
 		}
 	}
 
+	tmp := make(map[string]any)
 	if len(outputs) < len(event.Outputs()) {
-		err := cs.Abi.UnpackIntoMap(outputs, event.Name(), log.Data)
+		err := cs.Abi.UnpackIntoMap(tmp, event.Name(), log.Data)
 		if err != nil {
 			return nil, fmt.Errorf("unpacking log.Data: %w", err)
 		}
+	}
+
+	for k, v := range tmp {
+		outputs[k] = fmt.Sprint(v)
 	}
 
 	h, err := c.client.HeaderByNumber(ctx, big.NewInt(int64(log.BlockNumber)))

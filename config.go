@@ -28,7 +28,7 @@ func NewConfig(path string) (*Config, error) {
 	return &c, nil
 }
 
-func ConfigDir() (string, error) {
+func ConfigPath() (string, error) {
 	confDir, err := os.UserConfigDir()
 	if err != nil {
 		return "", err
@@ -37,7 +37,7 @@ func ConfigDir() (string, error) {
 	return path.Join(confDir, "apollo", "config.yml"), nil
 }
 
-func ConfigPath() (string, error) {
+func ConfigDir() (string, error) {
 	confDir, err := os.UserConfigDir()
 	if err != nil {
 		return "", err
