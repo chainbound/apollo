@@ -6,10 +6,8 @@ contracts:
   - address: 0x905dfCD5649217c42684f23958568e533C711Aa3
     name: usdc_eth_events
     abi: unipair.abi.json
-    events:
-      - name: Swap
+    methods:
+      - name: getReserves
         outputs:
-          - amount0In
-          - amount1In
-          - amount0Out
-          - amount1Out
+          - _reserve0
+          - _reserve1

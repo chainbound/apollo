@@ -197,6 +197,8 @@ func (c ChainService) FilterEvents(schema *generate.SchemaV2, fromBlock, toBlock
 	res := make(chan CallResult)
 	var wg sync.WaitGroup
 
+	// if
+
 	nworkers := 1
 	go func() {
 		for _, cs := range schema.Contracts {
@@ -286,7 +288,8 @@ func (c ChainService) FilterEvents(schema *generate.SchemaV2, fromBlock, toBlock
 			out <- r
 		}
 
-		close(out)
+		// TODO: Do something about this
+		// close(out)
 	}()
 }
 

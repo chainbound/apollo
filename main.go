@@ -114,20 +114,9 @@ func main() {
 		},
 	}
 
-	validateOpts(opts)
-
 	err := app.Run(os.Args)
 	if err != nil {
 		log.Fatal(err)
-	}
-}
-
-func validateOpts(opts ApolloOpts) {
-	switch {
-	case opts.endBlock != 0:
-		if opts.interval == 0 {
-			log.Fatal("need interval for historical mode")
-		}
 	}
 }
 
