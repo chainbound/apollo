@@ -56,7 +56,9 @@ func (o OutputHandler) HandleResult(res chainservice.CallResult) error {
 	}
 
 	if o.db != nil {
-		// TODO
+		if err := o.db.InsertResult(res); err != nil {
+			return err
+		}
 	}
 
 	if o.csv != nil {

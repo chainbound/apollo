@@ -17,9 +17,9 @@ const (
 
 var (
 	sqlTypes = map[ABIType]string{
-		Uint256: "BIGINT",
+		Uint256: "NUMERIC",
 		String:  "VARCHAR(55)", // strings are used for things like chain names
-		Address: "VARCHAR(40)", // addresses should be stored as strings without 0x prefix
+		Address: "VARCHAR(42)", // addresses should be stored as strings without 0x prefix
 	}
 )
 

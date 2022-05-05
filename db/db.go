@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/XMonetae-DeFi/apollo/chainservice"
 	"github.com/XMonetae-DeFi/apollo/generate"
@@ -16,10 +17,11 @@ var (
 )
 
 type DbSettings struct {
-	User     string `yaml:"user"`
-	Password string `yaml:"password"`
-	Name     string `yaml:"name"`
-	Host     string `yaml:"host"`
+	User           string `yaml:"user"`
+	Password       string `yaml:"password"`
+	Name           string `yaml:"name"`
+	Host           string `yaml:"host"`
+	DefaultTimeout time.Duration
 }
 
 type DB struct {
@@ -72,12 +74,15 @@ func (db DB) CreateTable(ctx context.Context, s generate.ContractSchemaV2) error
 	return nil
 }
 
-func (db DB) InsertResult(ctx context.Context, res chainservice.CallResult) error {
+func (db DB) InsertResult(res chainservice.CallResult) error {
+	ctx, cancel := context.WithTimeout(context.Background(), db.Settings.DefaultTimeout)
+	defer cancel()
+
 	toInsert := map[string]string{
 		"timestamp":   fmt.Sprint(res.Timestamp),
 		"blocknumber": fmt.Sprint(res.BlockNumber),
 		"chain":       string(res.Chain),
-		"contract":    res.ContractAddress.String(),
+		"contract":    res.ContractAddress.Hex(),
 	}
 
 	for k, v := range res.Inputs {
@@ -89,6 +94,7 @@ func (db DB) InsertResult(ctx context.Context, res chainservice.CallResult) erro
 	}
 
 	ddl := generate.GenerateInsertSQL(res.ContractName, toInsert)
+	fmt.Println(ddl)
 
 	_, err := db.pdb.ExecContext(ctx, ddl)
 	if err != nil {

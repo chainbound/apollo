@@ -50,7 +50,7 @@ func GenerateInsertSQL(tableName string, toInsert map[string]string) string {
 
 	for col, val := range toInsert {
 		columns += col + ","
-		values += val + ","
+		values += fmt.Sprintf("'%s',", val)
 	}
 
 	columns = strings.TrimSuffix(columns, ",") + ")"
@@ -65,7 +65,6 @@ func GenerateInsertSQL(tableName string, toInsert map[string]string) string {
 func AddColumnTypesFromABI(name string, abi abi.ABI, columns []*Column) []*Column {
 	for _, col := range columns {
 		// METHODS
-		fmt.Println(col.Name)
 		method := abi.Methods[name]
 		for _, i := range method.Inputs {
 			if i.Name == col.Name {
@@ -91,9 +90,7 @@ func AddColumnTypesFromABI(name string, abi abi.ABI, columns []*Column) []*Colum
 
 		// EVENTS
 		event := abi.Events[name]
-		fmt.Println(event)
 		for _, o := range event.Inputs {
-			fmt.Println(o.Name, col.Name)
 			if o.Name == col.Name {
 				col.Type = ABIToSQLType(ABIType(o.Type.String()))
 				col.Final = true

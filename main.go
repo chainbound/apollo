@@ -187,6 +187,8 @@ func Run(opts ApolloOpts) error {
 		log.Fatal(err)
 	}
 
+	cfg.DbSettings.DefaultTimeout = time.Second * 20
+
 	if opts.db {
 		pdb, err = db.NewDB(cfg.DbSettings).Connect()
 
@@ -280,7 +282,9 @@ func Run(opts ApolloOpts) error {
 			continue
 		}
 
-		out.HandleResult(res)
+		if err := out.HandleResult(res); err != nil {
+			fmt.Println(err)
+		}
 	}
 
 	return nil
