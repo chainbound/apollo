@@ -24,9 +24,15 @@ func BuildCallMsg(to common.Address, method MethodV2, abi abi.ABI) (ethereum.Cal
 
 func BuildCallInput(method MethodV2, abi abi.ABI) ([]byte, error) {
 	var vals []interface{}
-	for _, abiArg := range abi.Methods[method.Name()].Inputs {
+	abiInputs := abi.Methods[method.Name()].Inputs
+
+	for _, abiArg := range abiInputs {
 		for name, val := range method.Inputs() {
-			if abiArg.Name == name {
+			// Some ABIs have no named inputs (when there is only a single input for example)
+			if abiArg.Name == "" {
+				newVal := ABIToGoType(ABIType(abiArg.Type.String()), val)
+				vals = append(vals, newVal)
+			} else if abiArg.Name == name {
 				newVal := ABIToGoType(ABIType(abiArg.Type.String()), val)
 				vals = append(vals, newVal)
 			}

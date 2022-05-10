@@ -197,7 +197,9 @@ func (c ChainService) FilterEvents(schema *generate.SchemaV2, fromBlock, toBlock
 	res := make(chan CallResult)
 	var wg sync.WaitGroup
 
-	// if
+	if toBlock.Cmp(big.NewInt(0)) == 0 {
+		toBlock = nil
+	}
 
 	nworkers := 1
 	go func() {

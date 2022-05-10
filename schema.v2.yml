@@ -3,11 +3,12 @@ chain: arbitrum
 
 # The contracts to populate tables for
 contracts:
-  - address: 0x905dfCD5649217c42684f23958568e533C711Aa3
-    name: usdc_eth_events
-    abi: unipair.abi.json
+  - address: 0x489ee077994B6658eAfA855C308275EAd8097C4A
+    name: eth_prices_gmx
+    abi: glpVault.abi.json
     methods:
-      - name: getReserves
+      - name: getMinPrice
+        inputs:
+          tkn: 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1
         outputs:
-          - _reserve0
-          - _reserve1
+          - price
