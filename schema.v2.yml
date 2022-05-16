@@ -4,11 +4,29 @@ chain: arbitrum
 # The contracts to populate tables for
 contracts:
   - address: 0x489ee077994B6658eAfA855C308275EAd8097C4A
-    name: eth_prices_gmx
+    name: eth_reserved_guaranteed
     abi: glpVault.abi.json
     methods:
+      - name: poolAmounts
+        inputs:
+          token: 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1
+        outputs:
+          - poolAmount
+
       - name: getMinPrice
         inputs:
-          tkn: 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1
+          token: 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1
         outputs:
           - price
+
+      - name: reservedAmounts
+        inputs:
+          token: 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1
+        outputs:
+          - reservedAmount
+
+      - name: guaranteedUsd
+        inputs:
+          token: 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1
+        outputs:
+          - guaranteedUsd
