@@ -34,7 +34,7 @@ type ApolloOpts struct {
 //go:embed config.yml
 var cfg []byte
 
-//go:embed schema.v2.yml
+//go:embed schema.hcl
 var schema []byte
 
 func main() {
@@ -114,10 +114,6 @@ func main() {
 	}
 }
 
-type OutputHandler interface {
-	HandleResult(chainservice.CallResult) error
-}
-
 func Init() error {
 	p, err := os.UserConfigDir()
 	if err != nil {
@@ -139,7 +135,7 @@ func Init() error {
 	}
 	fmt.Println("config written", configPath)
 
-	schemaPath := path.Join(dirPath, "schema.yml")
+	schemaPath := path.Join(dirPath, "schema.hcl")
 	if err := os.WriteFile(schemaPath, schema, 0644); err != nil {
 		return err
 	}
@@ -203,27 +199,6 @@ func Run(opts ApolloOpts) error {
 		return err
 	}
 
-	csv := output.NewCsvHandler()
-
-	// PROBLEM: there's no easy way to know the column types in advance,
-	// so we're probably going to have to move the table creation logic
-	// into the output handler.
-	// for _, s := range schema.Contracts {
-	// 	if opts.db {
-	// 		err = pdb.CreateTable(ctx, *s)
-	// 		if err != nil {
-	// 			log.Fatal(err)
-	// 		}
-	// 	}
-
-	// 	if opts.csv {
-	// 		err = csv.AddCsv(*s)
-	// 		if err != nil {
-	// 			log.Fatal(err)
-	// 		}
-	// 	}
-	// }
-
 	out := output.NewOutputHandler()
 
 	if opts.db {
@@ -231,7 +206,7 @@ func Run(opts ApolloOpts) error {
 	}
 
 	if opts.csv {
-		out = out.WithCsv(csv)
+		out = out.WithCsv(output.NewCsvHandler())
 	}
 
 	if opts.stdout {
