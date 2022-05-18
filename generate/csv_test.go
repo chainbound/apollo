@@ -1,20 +1,23 @@
 package generate
 
 import (
-	"fmt"
 	"testing"
+
+	"github.com/XMonetae-DeFi/apollo/dsl"
 )
 
 func TestGenerateCsvHeaders(t *testing.T) {
-	schema, err := ParseV2("../test")
+	schema, err := dsl.NewSchema("../test")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	for _, s := range schema.Contracts {
-		c := GenerateCsvHeader(*s)
+	_ = schema
 
-		fmt.Println(c)
-	}
+	// for _, s := range schema.Contracts {
+	// 	c := GenerateCsvHeader(*s)
+
+	// 	fmt.Println(c)
+	// }
 
 }

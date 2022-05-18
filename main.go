@@ -12,33 +12,21 @@ import (
 	_ "embed"
 
 	"github.com/XMonetae-DeFi/apollo/chainservice"
+	"github.com/XMonetae-DeFi/apollo/common"
 	"github.com/XMonetae-DeFi/apollo/db"
-	"github.com/XMonetae-DeFi/apollo/generate"
+	"github.com/XMonetae-DeFi/apollo/dsl"
 	"github.com/XMonetae-DeFi/apollo/output"
 	"github.com/urfave/cli/v2"
 )
 
-// Main program options, provided as cli arguments
-type ApolloOpts struct {
-	realtime   bool
-	db         bool
-	csv        bool
-	stdout     bool
-	interval   int64
-	startBlock int64
-	endBlock   int64
-	rateLimit  int
-	chain      string
-}
-
 //go:embed config.yml
 var cfg []byte
 
-//go:embed schema.v2.yml
+//go:embed schema.hcl
 var schema []byte
 
 func main() {
-	var opts ApolloOpts
+	var opts common.ApolloOpts
 
 	app := &cli.App{
 		Name:  "apollo",
@@ -48,51 +36,45 @@ func main() {
 				Name:        "realtime",
 				Aliases:     []string{"R"},
 				Usage:       "Run apollo in realtime",
-				Destination: &opts.realtime,
+				Destination: &opts.Realtime,
 			},
 			&cli.BoolFlag{
 				Name:        "db",
 				Usage:       "Save results in database",
-				Destination: &opts.db,
+				Destination: &opts.Db,
 			},
 			&cli.BoolFlag{
 				Name:        "csv",
 				Usage:       "Save results in csv file",
-				Destination: &opts.csv,
+				Destination: &opts.Csv,
 			},
 			&cli.BoolFlag{
 				Name:        "stdout",
 				Usage:       "Print to stdout",
-				Destination: &opts.stdout,
+				Destination: &opts.Stdout,
 			},
 			&cli.Int64Flag{
 				Name:        "interval",
 				Aliases:     []string{"i"},
 				Usage:       "Interval in `BLOCKS` or SECONDS (realtime: seconds, historic: blocks)",
-				Destination: &opts.interval,
+				Destination: &opts.Interval,
 			},
 			&cli.Int64Flag{
 				Name:        "start-block",
 				Aliases:     []string{"s"},
 				Usage:       "Starting block number for historical analysis",
-				Destination: &opts.startBlock,
+				Destination: &opts.StartBlock,
 			},
 			&cli.Int64Flag{
 				Name:        "end-block",
 				Aliases:     []string{"e"},
 				Usage:       "End block number for historical analysis",
-				Destination: &opts.endBlock,
+				Destination: &opts.EndBlock,
 			},
 			&cli.IntFlag{
 				Name:        "rate-limit",
 				Usage:       "Rate limit `LEVEL`, from 1 - 5",
-				Destination: &opts.rateLimit,
-			},
-			&cli.StringFlag{
-				Name:        "chain",
-				Aliases:     []string{"c"},
-				Usage:       "The chain name",
-				Destination: &opts.chain,
+				Destination: &opts.RateLimit,
 			},
 		},
 		Commands: []*cli.Command{
@@ -120,10 +102,6 @@ func main() {
 	}
 }
 
-type OutputHandler interface {
-	HandleResult(chainservice.CallResult) error
-}
-
 func Init() error {
 	p, err := os.UserConfigDir()
 	if err != nil {
@@ -145,7 +123,7 @@ func Init() error {
 	}
 	fmt.Println("config written", configPath)
 
-	schemaPath := path.Join(dirPath, "schema.yml")
+	schemaPath := path.Join(dirPath, "schema.hcl")
 	if err := os.WriteFile(schemaPath, schema, 0644); err != nil {
 		return err
 	}
@@ -154,7 +132,7 @@ func Init() error {
 	return nil
 }
 
-func Run(opts ApolloOpts) error {
+func Run(opts common.ApolloOpts) error {
 	var pdb *db.DB
 
 	confDir, err := ConfigDir()
@@ -172,19 +150,19 @@ func Run(opts ApolloOpts) error {
 		return err
 	}
 
-	schema, err := generate.ParseV2(confDir)
+	schema, err := dsl.NewSchema(confDir)
 	if err != nil {
 		return err
 	}
 
 	// Validate the schema
-	if err := schema.Validate(); err != nil {
+	if err := schema.Validate(opts); err != nil {
 		log.Fatal(err)
 	}
 
 	cfg.DbSettings.DefaultTimeout = time.Second * 20
 
-	if opts.db {
+	if opts.Db {
 		pdb, err = db.NewDB(cfg.DbSettings).Connect()
 
 		if err != nil {
@@ -192,9 +170,9 @@ func Run(opts ApolloOpts) error {
 		}
 	}
 
-	rpc, ok := cfg.Rpc[opts.chain]
+	rpc, ok := cfg.Rpc[schema.Chain]
 	if !ok {
-		return fmt.Errorf("no rpc defined for chain %s", opts.chain)
+		return fmt.Errorf("no rpc defined for chain %s", opts.Chain)
 	}
 
 	defaultTimeout := time.Second * 30
@@ -203,61 +181,43 @@ func Run(opts ApolloOpts) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 
-	service, err := chainservice.NewChainService(defaultTimeout, opts.rateLimit).Connect(ctx, rpc)
+	service, err := chainservice.NewChainService(defaultTimeout, opts.RateLimit).Connect(ctx, rpc)
 	if err != nil {
 		return err
 	}
 
-	csv := output.NewCsvHandler()
-
-	for _, s := range schema.Contracts {
-		if opts.db {
-			err = pdb.CreateTable(ctx, *s)
-			if err != nil {
-				log.Fatal(err)
-			}
-		}
-
-		if opts.csv {
-			err = csv.AddCsv(*s)
-			if err != nil {
-				log.Fatal(err)
-			}
-		}
-	}
-
 	out := output.NewOutputHandler()
 
-	if opts.db {
+	if opts.Db {
 		out = out.WithDB(pdb)
 	}
 
-	if opts.csv {
-		out = out.WithCsv(csv)
+	if opts.Csv {
+		out = out.WithCsv(output.NewCsvHandler())
 	}
 
-	if opts.stdout {
+	if opts.Stdout {
 		out = out.WithStdOut()
 	}
 
 	// First check if there are any methods to be called, it might just be events
 	maxWorkers := 32
 	blocks := make(chan *big.Int)
-	chainResults := make(chan chainservice.CallResult)
+	chainResults := make(chan common.CallResult)
 
-	service.RunMethodCaller(schema, opts.realtime, blocks, chainResults, maxWorkers)
+	service.RunMethodCaller(schema, opts.Realtime, blocks, chainResults, maxWorkers)
 
 	// Start main program loop
-	if opts.realtime {
+	if opts.Realtime {
 		go func() {
 			for {
 				blocks <- nil
-				time.Sleep(time.Duration(opts.interval) * time.Second)
+				time.Sleep(time.Duration(opts.Interval) * time.Second)
 			}
 		}()
 	} else {
 		go func() {
-			for i := opts.startBlock; i < opts.endBlock; i += opts.interval {
+			for i := opts.StartBlock; i < opts.EndBlock; i += opts.Interval {
 				blocks <- big.NewInt(i)
 			}
 
@@ -265,10 +225,10 @@ func Run(opts ApolloOpts) error {
 		}()
 	}
 
-	if opts.realtime {
+	if opts.Realtime {
 		service.ListenForEvents(schema, chainResults, maxWorkers)
 	} else {
-		service.FilterEvents(schema, big.NewInt(opts.startBlock), big.NewInt(opts.endBlock), chainResults, maxWorkers)
+		service.FilterEvents(schema, big.NewInt(opts.StartBlock), big.NewInt(opts.EndBlock), chainResults, maxWorkers)
 	}
 
 	for res := range chainResults {
@@ -277,9 +237,12 @@ func Run(opts ApolloOpts) error {
 			continue
 		}
 
-		if err := out.HandleResult(res); err != nil {
-			fmt.Println(err)
+		save, err := schema.EvaluateSaveBlock(res.ContractName, dsl.GenerateVarMap(res))
+		if err != nil {
+			return fmt.Errorf("evaluating save block: %w", err)
 		}
+
+		out.HandleResult(res.ContractName, save)
 	}
 
 	return nil

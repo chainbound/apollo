@@ -1,12 +1,8 @@
 package db
 
 import (
-	"context"
 	"log"
 	"testing"
-	"time"
-
-	"github.com/XMonetae-DeFi/apollo/generate"
 )
 
 func newDB() *DB {
@@ -32,20 +28,20 @@ func TestConnect(t *testing.T) {
 }
 
 func TestCreateTable(t *testing.T) {
-	db := newDB()
-	schema, err := generate.ParseV2("../schema.v2.yml")
-	if err != nil {
-		t.Fatal(err)
-	}
+	// db := newDB()
+	// schema, err := generate.ParseV2("../schema.v2.yml")
+	// if err != nil {
+	// 	t.Fatal(err)
+	// }
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-	defer cancel()
+	// ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	// defer cancel()
 
-	for _, s := range schema.Contracts {
-		err = db.CreateTable(ctx, *s)
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
+	// for _, s := range schema.Contracts {
+	// 	err = db.CreateTable(ctx, *s)
+	// 	if err != nil {
+	// 		t.Fatal(err)
+	// 	}
+	// }
 
 }

@@ -1,19 +1,16 @@
 package generate
 
-func GenerateCsvHeader(cs ContractSchemaV2) []string {
-	columns := []string{"timestamp", "blocknumber", "chain", "contract"}
+import "github.com/zclconf/go-cty/cty"
+
+func GenerateCsvHeader(cols map[string]cty.Value) []string {
+	columns := make([]string, len(cols))
 
 	// The only dynamic table columns are the arguments and the return values
-	for _, call := range cs.Methods() {
-		for arg := range call.Inputs() {
-			columns = append(columns, arg)
-		}
+	i := 0
 
-		columns = append(columns, call.Outputs()...)
-	}
-
-	for _, event := range cs.Events() {
-		columns = append(columns, event.Outputs()...)
+	for k := range cols {
+		columns[i] = k
+		i++
 	}
 
 	return columns

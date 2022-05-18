@@ -5,42 +5,42 @@ import (
 	"testing"
 )
 
-func TestGenerateColumns(t *testing.T) {
-	schema, err := ParseV2("../test")
-	if err != nil {
-		t.Fatal(err)
-	}
+// func TestGenerateColumns(t *testing.T) {
+// 	schema, err := ParseV2("../test")
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
 
-	var cols []*Column
-	for _, s := range schema.Contracts {
-		c, err := GenerateColumns(*s)
-		if err != nil {
-			t.Fatal(err)
-		}
+// 	var cols []*Column
+// 	for _, s := range schema.Contracts {
+// 		c, err := GenerateColumns(*s)
+// 		if err != nil {
+// 			t.Fatal(err)
+// 		}
 
-		cols = append(cols, c...)
-	}
+// 		cols = append(cols, c...)
+// 	}
 
-	for _, col := range cols {
-		fmt.Println(col)
-	}
-}
+// 	for _, col := range cols {
+// 		fmt.Println(col)
+// 	}
+// }
 
-func TestGenerateDDL(t *testing.T) {
-	schema, err := ParseV2("../test")
-	if err != nil {
-		t.Fatal(err)
-	}
+// func TestGenerateDDL(t *testing.T) {
+// 	schema, err := ParseV2("../test")
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
 
-	for _, s := range schema.Contracts {
-		ddl, err := GenerateCreateDDL(*s)
-		if err != nil {
-			t.Fatal(err)
-		}
+// 	for _, s := range schema.Contracts {
+// 		ddl, err := GenerateCreateDDL(*s)
+// 		if err != nil {
+// 			t.Fatal(err)
+// 		}
 
-		fmt.Println(ddl)
-	}
-}
+// 		fmt.Println(ddl)
+// 	}
+// }
 
 func TestGenerateInsertSQL(t *testing.T) {
 	m := map[string]string{

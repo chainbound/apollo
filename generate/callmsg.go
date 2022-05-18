@@ -11,18 +11,24 @@ import (
 
 // This package should generate the packed ABI inputs
 
-func BuildCallMsg(to common.Address, method MethodV2, abi abi.ABI) (ethereum.CallMsg, error) {
+type Method interface {
+	Name() string
+	Inputs() map[string]string
+}
+
+func BuildCallMsg(to common.Address, method Method, abi abi.ABI) (ethereum.CallMsg, error) {
 	input, err := BuildCallInput(method, abi)
 	if err != nil {
 		return ethereum.CallMsg{}, err
 	}
+
 	return ethereum.CallMsg{
 		Data: input,
 		To:   &to,
 	}, nil
 }
 
-func BuildCallInput(method MethodV2, abi abi.ABI) ([]byte, error) {
+func BuildCallInput(method Method, abi abi.ABI) ([]byte, error) {
 	var vals []interface{}
 	abiInputs := abi.Methods[method.Name()].Inputs
 

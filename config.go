@@ -4,13 +4,15 @@ import (
 	"os"
 	"path"
 
+	"github.com/XMonetae-DeFi/apollo/common"
 	"github.com/XMonetae-DeFi/apollo/db"
+
 	"gopkg.in/yaml.v2"
 )
 
 type Config struct {
-	Rpc        map[string]string `yaml:"rpc"`
-	DbSettings db.DbSettings     `yaml:"postgres"`
+	Rpc        map[common.Chain]string `yaml:"rpc"`
+	DbSettings db.DbSettings           `yaml:"postgres"`
 }
 
 func NewConfig(path string) (*Config, error) {

@@ -4,6 +4,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/zclconf/go-cty/cty"
 )
 
 type ABIType string
@@ -23,8 +24,24 @@ var (
 	}
 )
 
+var (
+	ctySqlTypes = map[cty.Type]string{
+		cty.Number: "NUMERIC",
+		cty.String: "VARCHAR(55)",
+	}
+)
+
 func ABIToSQLType(abiType ABIType) string {
 	if sqlType, ok := sqlTypes[abiType]; ok {
+		return sqlType
+	}
+
+	// By default, return BIGINT
+	return "NUMERIC"
+}
+
+func CtyToSQLType(t cty.Type) string {
+	if sqlType, ok := ctySqlTypes[t]; ok {
 		return sqlType
 	}
 
