@@ -19,7 +19,7 @@ First, generate the config directory and files:
 ```
 apollo init
 ```
-This will generate the configuration files (`config.yml` and `schema.yml`) and put it into your configuration
+This will generate the configuration files (`config.yml` and `schema.hcl`) and put it into your configuration
 directory, which will either be `$XDG_CONFIG_HOME/apollo` or `$HOME/.config/apollo`. This is the directory
 in which you have to configure `apollo`, and it's also the directory where `apollo` will try to find the specified
 contract ABIs.
@@ -33,11 +33,11 @@ and an optional output option (either `--csv`, `--db` or `--stdout`)
 
 * Run a method calling schema every 5 seconds in realtime on Arbitrum, and save the results in a csv
 ```
-apollo --realtime --interval 5 --csv --chain arbitrum
+apollo --realtime --interval 5 --csv
 ```
 * Run an event collecting schema in realtime on Ethereum, save the results in a database
 ```
-apollo --realtime --db --chain ethereum
+apollo --realtime --db
 ```
 
 * **Historical mode**
@@ -48,11 +48,11 @@ and an optional output option.
 
 * Run a method calling schema every 100 blocks with a start and end block on Arbitrum, and save the results in a DB and a csv
 ```
-apollo --start-block 1000000 --end-block 1200000 --interval 100 --csv --db --chain arbitrum 
+apollo --start-block 1000000 --end-block 1200000 --interval 100 --csv --db
 ```
 * Run an event collecting schema over a range of blocks on Polygon, and output the results to `stdout`
 ```
-apollo --start-block 1000000 --end-block 1500000 --stdout --chain polygon 
+apollo --start-block 1000000 --end-block 1500000 --stdout
 ```
 
 **All Options**
@@ -71,71 +71,75 @@ GLOBAL OPTIONS:
 ```
 
 ## Schema
-The schema is in the form of a YAML file which defines the data we're interested in. The top-level elements are `chain` and `contracts`.
+The schema is in the form of a [HCL](https://github.com/hashicorp/hcl) file which defines the data we're interested in. 
+The top-level elements are `chain` and `contracts`.
 `contracts` will define the data we want. There are some annotated examples below.
 ### Methods Example
-```yaml
-# Define the chain to run on
-chain: arbitrum
+```hcl
+// Define the chain to run on
+chain = "arbitrum"
 
-# The contracts to populate tables for
-contracts:
-    # Address of the contract
-  - address: 0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8
-    # The name of the contract (will be the table name in the DB and name of the CSV file)
-    name: usdc
-    # ABI file (in ~/.config/apollo)
-    abi: erc20.abi.json
-    # Methods we want to call (as a list)
-    methods:
-      - name: balanceOf
-        # Arguments according to the ABI
-        inputs:
-          _owner: 0xe1Dd30fecAb8a63105F2C035B084BfC6Ca5B1493
-        # The outputs we want according to the ABI.
-        outputs:
-          - balance
+contract usdc_eth_reserves "0x905dfCD5649217c42684f23958568e533C711Aa3" {
+  // Will search in the Apollo config directory
+  abi = "unipair.abi.json"
 
-      - name: totalSupply
-        # No args in this case
-        outputs:
-          # the totalSupply() method does not have named outputs, so
-          # this will dynamically name the output parameter 'supply'
-          - supply
+  // Call methods
+  method getReserves {
+    // These are the outputs we're interested in. They are available 
+    // to transform as variables in the "save" block below. Outputs should
+    // be provided as a list.
+    outputs = ["_reserve0", "_reserve1"]
+  }
 
-  - address: 0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612
-    name: eth_chainlink_feed
-    abi: feed.abi.json
-    methods:
-      - name: latestRoundData
-        # This method has no inputs, so we can leave "args" out
+  // The "save" block will give us access to more context, including variables
+  // like "timestamp", "blocknumber", "contract_address", and any inputs or outputs
+  // defined earlier.
+  save {
+    timestamp = timestamp
+    block = blocknumber
+    contract = contract_address
+    eth_reserve = parse_decimals(_reserve0, 18)
+    usdc_reserve = parse_decimals(_reserve1, 6)
 
-        # The method has multiple outputs, here we specify which ones
-        # we're interested in.
-        outputs:
-          - answer
-          - roundId
-          - updatedAt
+    // Example: we want to calculate the mid price from the 2 reserves.
+    // Cannot reuse variables that are defined in the same "save" block.
+    // We have to reuse variables that were defined in advance, i.e.
+    // in "inputs" or "outputs"
+    mid_price = parse_decimals(_reserve1, 6) / parse_decimals(_reserve0, 18)
+
+  }
+}
 ```
 ### Events Example
-```yaml
-# Define the chain to run on
-chain: arbitrum
+```hcl
+// Define the chain to run on
+chain = "arbitrum"
 
-# The contracts to populate tables for
-contracts:
-    # Address of the contract on corresponding chain (Arbitrum)
-  - address: 0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8
-    # The name of the contract (will be the table name in the DB and name of CSV file)
-    name: usdc_transfer_events
-    # ABI file (in ~/.config/apollo)
-    abi: erc20.abi.json
-    events:
-      - name: Transfer
-        outputs:
-          - from
-          - to
-          - value
+contract usdc_to_eth_swaps "0x905dfCD5649217c42684f23958568e533C711Aa3" {
+  // Will search in the Apollo config directory
+  abi = "unipair.abi.json"
+
+  // Listen for events
+  event Swap {
+    // The outputs we're interested in, same way as with methods.
+    outputs = ["amount1In", "amount0Out", "amount0In", "amount1Out"]
+  }
+
+
+  // Besides the normal context, the "save" block for events provides an additional
+  // variable "tx_hash". This is the transaction hash of the originating transaction.
+  save {
+    timestamp = timestamp
+    block = blocknumber
+    contract = contract_address
+    tx_hash = tx_hash
+
+    // Example: we want to calculate the price of the swap.
+    price = amount0Out != 0 ? (parse_decimals(amount1In, 6) / parse_decimals(amount0Out, 18)) : (parse_decimals(amount1Out, 6) / parse_decimals(amount0In, 18))
+    dir = amount0Out != 0 ? "buy" : "sell"
+    size = amount1In != 0 ? parse_decimals(amount1In, 6) : parse_decimals(amount1Out, 6)
+  }
+}
 ```
 
 ## Output
