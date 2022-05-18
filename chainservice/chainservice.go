@@ -7,15 +7,16 @@ import (
 	"sync"
 	"time"
 
+	acommon "github.com/XMonetae-DeFi/apollo/common"
 	"github.com/XMonetae-DeFi/apollo/dsl"
 	"github.com/XMonetae-DeFi/apollo/generate"
+
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/zclconf/go-cty/cty"
-	"github.com/zclconf/go-cty/cty/gocty"
 )
 
 type ChainService struct {
@@ -51,60 +52,6 @@ func (c ChainService) IsConnected() bool {
 	}
 }
 
-type ResultType int
-
-const (
-	Event ResultType = iota
-	Method
-)
-
-type CallResult struct {
-	Err             error
-	Chain           dsl.Chain
-	Type            ResultType
-	ContractName    string
-	ContractAddress common.Address
-	BlockNumber     uint64
-	Timestamp       uint64
-	TxHash          common.Hash
-	Inputs          map[string]any
-	Outputs         map[string]any
-}
-
-// TODO: outputs and inputs should have dynamic types, not just strings
-func (cr CallResult) GenerateVarMap() map[string]cty.Value {
-	m := make(map[string]cty.Value)
-
-	m["contract_address"], _ = gocty.ToCtyValue(cr.ContractAddress.String(), cty.String)
-
-	m["blocknumber"], _ = gocty.ToCtyValue(cr.BlockNumber, cty.Number)
-	m["timestamp"], _ = gocty.ToCtyValue(cr.Timestamp, cty.Number)
-
-	for k, v := range cr.Inputs {
-		switch v.(type) {
-		case string:
-			m[k], _ = gocty.ToCtyValue(v, cty.String)
-		default:
-			m[k], _ = gocty.ToCtyValue(v, cty.Number)
-		}
-	}
-
-	for k, v := range cr.Outputs {
-		switch v.(type) {
-		case string:
-			m[k], _ = gocty.ToCtyValue(v, cty.String)
-		default:
-			m[k], _ = gocty.ToCtyValue(v, cty.Number)
-		}
-	}
-
-	if cr.Type == Event {
-		m["tx_hash"], _ = gocty.ToCtyValue(cr.TxHash.String(), cty.String)
-	}
-
-	return m
-}
-
 type EvaluationResult struct {
 	Name string
 	Err  error
@@ -113,8 +60,8 @@ type EvaluationResult struct {
 
 // RunMethodCaller starts a listener on the `blocks` channel, and on every incoming block it will execute all methods concurrently
 // on the given blockNumber.
-func (c *ChainService) RunMethodCaller(schema *dsl.DynamicSchema, realtime bool, blocks <-chan *big.Int, out chan<- CallResult, maxWorkers int) {
-	res := make(chan CallResult)
+func (c *ChainService) RunMethodCaller(schema *dsl.DynamicSchema, realtime bool, blocks <-chan *big.Int, out chan<- acommon.CallResult, maxWorkers int) {
+	res := make(chan acommon.CallResult)
 	var wg sync.WaitGroup
 
 	nworkers := 1
@@ -160,7 +107,7 @@ func (c *ChainService) RunMethodCaller(schema *dsl.DynamicSchema, realtime bool,
 }
 
 // CallMethods executes all the methods on the contract, and aggregates their results into a CallResult
-func (c ChainService) CallMethods(chain dsl.Chain, contract *dsl.Contract, blockNumber *big.Int, out chan<- CallResult) {
+func (c ChainService) CallMethods(chain acommon.Chain, contract *dsl.Contract, blockNumber *big.Int, out chan<- acommon.CallResult) {
 	inputs := make(map[string]any)
 	outputs := make(map[string]any)
 
@@ -175,7 +122,7 @@ func (c ChainService) CallMethods(chain dsl.Chain, contract *dsl.Contract, block
 	for _, method := range contract.Methods {
 		msg, err := generate.BuildCallMsg(contract.Address(), method, contract.Abi)
 		if err != nil {
-			out <- CallResult{
+			out <- acommon.CallResult{
 				Err: fmt.Errorf("building call message: %w", err),
 			}
 			return
@@ -183,7 +130,7 @@ func (c ChainService) CallMethods(chain dsl.Chain, contract *dsl.Contract, block
 
 		raw, err := c.client.CallContract(ctx, msg, blockNumber)
 		if err != nil {
-			out <- CallResult{
+			out <- acommon.CallResult{
 				Err: fmt.Errorf("calling contract method: %w", err),
 			}
 			return
@@ -192,7 +139,7 @@ func (c ChainService) CallMethods(chain dsl.Chain, contract *dsl.Contract, block
 		// We only want the correct value here (specified in the schema)
 		results, err := contract.Abi.Unpack(method.Name(), raw)
 		if err != nil {
-			out <- CallResult{
+			out <- acommon.CallResult{
 				Err: fmt.Errorf("unpacking abi for %s: %w", method.Name(), err),
 			}
 			return
@@ -212,7 +159,7 @@ func (c ChainService) CallMethods(chain dsl.Chain, contract *dsl.Contract, block
 	actualBlockNumber := uint64(0)
 	block, err := c.client.HeaderByNumber(ctx, blockNumber)
 	if err != nil {
-		out <- CallResult{
+		out <- acommon.CallResult{
 			Err: err,
 		}
 		return
@@ -224,8 +171,8 @@ func (c ChainService) CallMethods(chain dsl.Chain, contract *dsl.Contract, block
 		actualBlockNumber = blockNumber.Uint64()
 	}
 
-	out <- CallResult{
-		Type:            Method,
+	out <- acommon.CallResult{
+		Type:            acommon.Method,
 		BlockNumber:     actualBlockNumber,
 		Timestamp:       block.Time,
 		Chain:           chain,
@@ -236,8 +183,8 @@ func (c ChainService) CallMethods(chain dsl.Chain, contract *dsl.Contract, block
 	}
 }
 
-func (c ChainService) FilterEvents(schema *dsl.DynamicSchema, fromBlock, toBlock *big.Int, out chan<- CallResult, maxWorkers int) {
-	res := make(chan CallResult)
+func (c ChainService) FilterEvents(schema *dsl.DynamicSchema, fromBlock, toBlock *big.Int, out chan<- acommon.CallResult, maxWorkers int) {
+	res := make(chan acommon.CallResult)
 	var wg sync.WaitGroup
 
 	if toBlock.Cmp(big.NewInt(0)) == 0 {
@@ -251,7 +198,7 @@ func (c ChainService) FilterEvents(schema *dsl.DynamicSchema, fromBlock, toBlock
 				// Get first topic in Bytes (to filter events)
 				topic, err := generate.GetTopic(event.Name(), cs.Abi)
 				if err != nil {
-					res <- CallResult{
+					res <- acommon.CallResult{
 						Err: fmt.Errorf("generating topic id: %w", err),
 					}
 					return
@@ -291,7 +238,7 @@ func (c ChainService) FilterEvents(schema *dsl.DynamicSchema, fromBlock, toBlock
 					})
 
 					if err != nil {
-						res <- CallResult{
+						res <- acommon.CallResult{
 							Err: fmt.Errorf("getting logs from node: %w", err),
 						}
 						return
@@ -304,7 +251,7 @@ func (c ChainService) FilterEvents(schema *dsl.DynamicSchema, fromBlock, toBlock
 							defer wg.Done()
 							result, err := c.HandleLog(log, schema.Chain, cs, event, indexedEvents)
 							if err != nil {
-								res <- CallResult{
+								res <- acommon.CallResult{
 									Err: fmt.Errorf("handling log: %w", err),
 								}
 								return
@@ -338,8 +285,8 @@ func (c ChainService) FilterEvents(schema *dsl.DynamicSchema, fromBlock, toBlock
 	}()
 }
 
-func (c ChainService) ListenForEvents(schema *dsl.DynamicSchema, out chan<- CallResult, maxWorkers int) {
-	res := make(chan CallResult)
+func (c ChainService) ListenForEvents(schema *dsl.DynamicSchema, out chan<- acommon.CallResult, maxWorkers int) {
+	res := make(chan acommon.CallResult)
 	logChan := make(chan types.Log)
 	var wg sync.WaitGroup
 
@@ -350,7 +297,7 @@ func (c ChainService) ListenForEvents(schema *dsl.DynamicSchema, out chan<- Call
 				// Get first topic in Bytes (to filter events)
 				topic, err := generate.GetTopic(event.Name_, cs.Abi)
 				if err != nil {
-					res <- CallResult{
+					res <- acommon.CallResult{
 						Err: fmt.Errorf("generating topic id: %w", err),
 					}
 					return
@@ -381,7 +328,7 @@ func (c ChainService) ListenForEvents(schema *dsl.DynamicSchema, out chan<- Call
 					},
 				}, logChan)
 				if err != nil {
-					res <- CallResult{
+					res <- acommon.CallResult{
 						Err: fmt.Errorf("subscribing to logs: %w", err),
 					}
 					return
@@ -396,7 +343,7 @@ func (c ChainService) ListenForEvents(schema *dsl.DynamicSchema, out chan<- Call
 						defer wg.Done()
 						result, err := c.HandleLog(log, schema.Chain, cs, event, indexedEvents)
 						if err != nil {
-							res <- CallResult{
+							res <- acommon.CallResult{
 								Err: fmt.Errorf("handling log: %w", err),
 							}
 							return
@@ -427,7 +374,7 @@ func (c ChainService) ListenForEvents(schema *dsl.DynamicSchema, out chan<- Call
 	}()
 }
 
-func (c ChainService) HandleLog(log types.Log, chain dsl.Chain, cs *dsl.Contract, event *dsl.Event, indexedEvents map[string]int) (*CallResult, error) {
+func (c ChainService) HandleLog(log types.Log, chain acommon.Chain, cs *dsl.Contract, event *dsl.Event, indexedEvents map[string]int) (*acommon.CallResult, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), c.defaultTimeout)
 	defer cancel()
 
@@ -459,8 +406,8 @@ func (c ChainService) HandleLog(log types.Log, chain dsl.Chain, cs *dsl.Contract
 		}
 	}
 
-	return &CallResult{
-		Type:            Event,
+	return &acommon.CallResult{
+		Type:            acommon.Event,
 		Chain:           chain,
 		ContractName:    cs.Name,
 		ContractAddress: cs.Address(),

@@ -12,6 +12,7 @@ import (
 	_ "embed"
 
 	"github.com/XMonetae-DeFi/apollo/chainservice"
+	"github.com/XMonetae-DeFi/apollo/common"
 	"github.com/XMonetae-DeFi/apollo/db"
 	"github.com/XMonetae-DeFi/apollo/dsl"
 	"github.com/XMonetae-DeFi/apollo/output"
@@ -216,7 +217,7 @@ func Run(opts ApolloOpts) error {
 	// First check if there are any methods to be called, it might just be events
 	maxWorkers := 32
 	blocks := make(chan *big.Int)
-	chainResults := make(chan chainservice.CallResult)
+	chainResults := make(chan common.CallResult)
 
 	service.RunMethodCaller(schema, opts.realtime, blocks, chainResults, maxWorkers)
 
@@ -250,7 +251,7 @@ func Run(opts ApolloOpts) error {
 			continue
 		}
 
-		save, err := schema.EvaluateSaveBlock(res.ContractName, res.GenerateVarMap())
+		save, err := schema.EvaluateSaveBlock(res.ContractName, dsl.GenerateVarMap(res))
 		if err != nil {
 			return fmt.Errorf("evaluating save block: %w", err)
 		}

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/XMonetae-DeFi/apollo/common"
 	"github.com/XMonetae-DeFi/apollo/dsl"
 )
 
@@ -45,7 +46,7 @@ func TestExecCallContracts(t *testing.T) {
 
 	blocks := make(chan *big.Int)
 
-	res := make(chan CallResult)
+	res := make(chan common.CallResult)
 	service.RunMethodCaller(schema, true, blocks, res, 10)
 
 	// Latest block, then close
@@ -89,7 +90,7 @@ func TestListenForEvents(t *testing.T) {
 	}
 
 	service := newChainService()
-	res := make(chan CallResult)
+	res := make(chan common.CallResult)
 	maxWorkers := 32
 
 	service.ListenForEvents(schema, res, maxWorkers)

@@ -6,6 +6,8 @@ import (
 	"os"
 	"path"
 
+	acommon "github.com/XMonetae-DeFi/apollo/common"
+
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 
@@ -15,22 +17,12 @@ import (
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 	"github.com/zclconf/go-cty/cty/function/stdlib"
-)
-
-type Chain string
-
-const (
-	ETHEREUM Chain = "ethereum"
-	AVAX     Chain = "avax"
-	ARBITRUM Chain = "arbitrum"
-	OPTIMISM Chain = "optimism"
-	POLYGON  Chain = "polygon"
-	FANTOM   Chain = "fantom"
+	"github.com/zclconf/go-cty/cty/gocty"
 )
 
 type DynamicSchema struct {
-	Chain     Chain       `hcl:"chain"`
-	Contracts []*Contract `hcl:"contract,block"`
+	Chain     acommon.Chain `hcl:"chain"`
+	Contracts []*Contract   `hcl:"contract,block"`
 
 	EvalContext *hcl.EvalContext
 }
@@ -162,4 +154,37 @@ func (s *DynamicSchema) EvaluateSaveBlock(contractName string, vars map[string]c
 	}
 
 	return saves, nil
+}
+
+func GenerateVarMap(cr acommon.CallResult) map[string]cty.Value {
+	m := make(map[string]cty.Value)
+
+	m["contract_address"], _ = gocty.ToCtyValue(cr.ContractAddress.String(), cty.String)
+
+	m["blocknumber"], _ = gocty.ToCtyValue(cr.BlockNumber, cty.Number)
+	m["timestamp"], _ = gocty.ToCtyValue(cr.Timestamp, cty.Number)
+
+	for k, v := range cr.Inputs {
+		switch v.(type) {
+		case string:
+			m[k], _ = gocty.ToCtyValue(v, cty.String)
+		default:
+			m[k], _ = gocty.ToCtyValue(v, cty.Number)
+		}
+	}
+
+	for k, v := range cr.Outputs {
+		switch v.(type) {
+		case string:
+			m[k], _ = gocty.ToCtyValue(v, cty.String)
+		default:
+			m[k], _ = gocty.ToCtyValue(v, cty.Number)
+		}
+	}
+
+	if cr.Type == acommon.Event {
+		m["tx_hash"], _ = gocty.ToCtyValue(cr.TxHash.String(), cty.String)
+	}
+
+	return m
 }
