@@ -22,8 +22,8 @@ import (
 )
 
 var (
-	ErrNoMethodsInRealtime = errors.New("no methods allowed in realtime mode")
-	ErrNoInterval          = errors.New("no interval defined for historical method calls")
+	ErrNoIntervalRealtime   = errors.New("no interval defined for realtime method calls")
+	ErrNoIntervalHistorical = errors.New("no interval defined for historical method calls")
 )
 
 type DynamicSchema struct {
@@ -43,12 +43,14 @@ func (s DynamicSchema) Validate(opts acommon.ApolloOpts) error {
 
 	if hasMethods {
 		if opts.Realtime {
-			return ErrNoMethodsInRealtime
+			if opts.Interval == 0 {
+				return ErrNoIntervalRealtime
+			}
 		}
 
 		if opts.StartBlock != 0 && opts.EndBlock != 0 {
 			if opts.Interval == 0 {
-				return ErrNoInterval
+				return ErrNoIntervalHistorical
 			}
 		}
 	}
