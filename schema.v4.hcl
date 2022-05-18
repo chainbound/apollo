@@ -20,6 +20,8 @@ contract usdc_eth_reserves "0x905dfCD5649217c42684f23958568e533C711Aa3" {
     outputs = ["balance"]
   }
 
+  save_predicate = _reserve0 != 0
+
   save {
     timestamp = timestamp
     block = blocknumber
@@ -54,6 +56,10 @@ contract usdc_to_eth_swaps "0x905dfCD5649217c42684f23958568e533C711Aa3" {
     }
   }
 
+
+  // Only save when this condition is met (e.g. save_predicate evaluates to "true"
+  // with all the variables filled in)
+  save_predicate = amount0Out != 0
 
   // The "save" block defines which data we want to save, and how it should look.
   // Basic arithmetic works here, as well as some more advanced functions like parse_decimals.

@@ -19,19 +19,6 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-// Main program options, provided as cli arguments
-type ApolloOpts struct {
-	realtime   bool
-	db         bool
-	csv        bool
-	stdout     bool
-	interval   int64
-	startBlock int64
-	endBlock   int64
-	rateLimit  int
-	chain      string
-}
-
 //go:embed config.yml
 var cfg []byte
 
@@ -39,7 +26,7 @@ var cfg []byte
 var schema []byte
 
 func main() {
-	var opts ApolloOpts
+	var opts common.ApolloOpts
 
 	app := &cli.App{
 		Name:  "apollo",
@@ -49,45 +36,45 @@ func main() {
 				Name:        "realtime",
 				Aliases:     []string{"R"},
 				Usage:       "Run apollo in realtime",
-				Destination: &opts.realtime,
+				Destination: &opts.Realtime,
 			},
 			&cli.BoolFlag{
 				Name:        "db",
 				Usage:       "Save results in database",
-				Destination: &opts.db,
+				Destination: &opts.Db,
 			},
 			&cli.BoolFlag{
 				Name:        "csv",
 				Usage:       "Save results in csv file",
-				Destination: &opts.csv,
+				Destination: &opts.Csv,
 			},
 			&cli.BoolFlag{
 				Name:        "stdout",
 				Usage:       "Print to stdout",
-				Destination: &opts.stdout,
+				Destination: &opts.Stdout,
 			},
 			&cli.Int64Flag{
 				Name:        "interval",
 				Aliases:     []string{"i"},
 				Usage:       "Interval in `BLOCKS` or SECONDS (realtime: seconds, historic: blocks)",
-				Destination: &opts.interval,
+				Destination: &opts.Interval,
 			},
 			&cli.Int64Flag{
 				Name:        "start-block",
 				Aliases:     []string{"s"},
 				Usage:       "Starting block number for historical analysis",
-				Destination: &opts.startBlock,
+				Destination: &opts.StartBlock,
 			},
 			&cli.Int64Flag{
 				Name:        "end-block",
 				Aliases:     []string{"e"},
 				Usage:       "End block number for historical analysis",
-				Destination: &opts.endBlock,
+				Destination: &opts.EndBlock,
 			},
 			&cli.IntFlag{
 				Name:        "rate-limit",
 				Usage:       "Rate limit `LEVEL`, from 1 - 5",
-				Destination: &opts.rateLimit,
+				Destination: &opts.RateLimit,
 			},
 		},
 		Commands: []*cli.Command{
@@ -145,7 +132,7 @@ func Init() error {
 	return nil
 }
 
-func Run(opts ApolloOpts) error {
+func Run(opts common.ApolloOpts) error {
 	var pdb *db.DB
 
 	confDir, err := ConfigDir()
@@ -169,14 +156,13 @@ func Run(opts ApolloOpts) error {
 	}
 
 	// Validate the schema
-	// TODO
-	// if err := schema.Validate(); err != nil {
-	// 	log.Fatal(err)
-	// }
+	if err := schema.Validate(opts); err != nil {
+		log.Fatal(err)
+	}
 
 	cfg.DbSettings.DefaultTimeout = time.Second * 20
 
-	if opts.db {
+	if opts.Db {
 		pdb, err = db.NewDB(cfg.DbSettings).Connect()
 
 		if err != nil {
@@ -186,7 +172,7 @@ func Run(opts ApolloOpts) error {
 
 	rpc, ok := cfg.Rpc[schema.Chain]
 	if !ok {
-		return fmt.Errorf("no rpc defined for chain %s", opts.chain)
+		return fmt.Errorf("no rpc defined for chain %s", opts.Chain)
 	}
 
 	defaultTimeout := time.Second * 30
@@ -195,22 +181,22 @@ func Run(opts ApolloOpts) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 
-	service, err := chainservice.NewChainService(defaultTimeout, opts.rateLimit).Connect(ctx, rpc)
+	service, err := chainservice.NewChainService(defaultTimeout, opts.RateLimit).Connect(ctx, rpc)
 	if err != nil {
 		return err
 	}
 
 	out := output.NewOutputHandler()
 
-	if opts.db {
+	if opts.Db {
 		out = out.WithDB(pdb)
 	}
 
-	if opts.csv {
+	if opts.Csv {
 		out = out.WithCsv(output.NewCsvHandler())
 	}
 
-	if opts.stdout {
+	if opts.Stdout {
 		out = out.WithStdOut()
 	}
 
@@ -219,19 +205,19 @@ func Run(opts ApolloOpts) error {
 	blocks := make(chan *big.Int)
 	chainResults := make(chan common.CallResult)
 
-	service.RunMethodCaller(schema, opts.realtime, blocks, chainResults, maxWorkers)
+	service.RunMethodCaller(schema, opts.Realtime, blocks, chainResults, maxWorkers)
 
 	// Start main program loop
-	if opts.realtime {
+	if opts.Realtime {
 		go func() {
 			for {
 				blocks <- nil
-				time.Sleep(time.Duration(opts.interval) * time.Second)
+				time.Sleep(time.Duration(opts.Interval) * time.Second)
 			}
 		}()
 	} else {
 		go func() {
-			for i := opts.startBlock; i < opts.endBlock; i += opts.interval {
+			for i := opts.StartBlock; i < opts.EndBlock; i += opts.Interval {
 				blocks <- big.NewInt(i)
 			}
 
@@ -239,10 +225,10 @@ func Run(opts ApolloOpts) error {
 		}()
 	}
 
-	if opts.realtime {
+	if opts.Realtime {
 		service.ListenForEvents(schema, chainResults, maxWorkers)
 	} else {
-		service.FilterEvents(schema, big.NewInt(opts.startBlock), big.NewInt(opts.endBlock), chainResults, maxWorkers)
+		service.FilterEvents(schema, big.NewInt(opts.StartBlock), big.NewInt(opts.EndBlock), chainResults, maxWorkers)
 	}
 
 	for res := range chainResults {

@@ -13,6 +13,19 @@ const (
 	FANTOM   Chain = "fantom"
 )
 
+// Main program options, provided as cli arguments
+type ApolloOpts struct {
+	Realtime   bool
+	Db         bool
+	Csv        bool
+	Stdout     bool
+	Interval   int64
+	StartBlock int64
+	EndBlock   int64
+	RateLimit  int
+	Chain      string
+}
+
 type ResultType int
 
 const (

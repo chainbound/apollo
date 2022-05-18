@@ -1,6 +1,7 @@
 package dsl
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -20,11 +21,39 @@ import (
 	"github.com/zclconf/go-cty/cty/gocty"
 )
 
+var (
+	ErrNoMethodsInRealtime = errors.New("no methods allowed in realtime mode")
+	ErrNoInterval          = errors.New("no interval defined for historical method calls")
+)
+
 type DynamicSchema struct {
 	Chain     acommon.Chain `hcl:"chain"`
 	Contracts []*Contract   `hcl:"contract,block"`
 
 	EvalContext *hcl.EvalContext
+}
+
+func (s DynamicSchema) Validate(opts acommon.ApolloOpts) error {
+	hasMethods := false
+	for _, c := range s.Contracts {
+		if len(c.Methods) > 0 {
+			hasMethods = true
+		}
+	}
+
+	if hasMethods {
+		if opts.Realtime {
+			return ErrNoMethodsInRealtime
+		}
+
+		if opts.StartBlock != 0 && opts.EndBlock != 0 {
+			if opts.Interval == 0 {
+				return ErrNoInterval
+			}
+		}
+	}
+
+	return nil
 }
 
 type Contract struct {
@@ -36,6 +65,7 @@ type Contract struct {
 	Events  []*Event  `hcl:"event,block"`
 	Saves   Save      `hcl:"save,block"`
 
+	// The ABI will get injected when decoding the schema
 	Abi abi.ABI
 }
 
@@ -86,12 +116,15 @@ func InitialContext() hcl.EvalContext {
 			"lower":          stdlib.LowerFunc,
 			"abs":            stdlib.AbsoluteFunc,
 			"parse_decimals": ParseDecimals,
-			"eq":             stdlib.EqualFunc,
 		},
 		Variables: map[string]cty.Value{},
 	})
 }
 
+// NewSchema returns a new DynamicSchema, loaded from confDir/schema.hcl.
+// It will decode the top-level body with an initial evaluation context
+// to provide access to custom functions. For each contract, it will also
+// read and convert the json ABI file to an abi.ABI.
 func NewSchema(confDir string) (*DynamicSchema, error) {
 	schemaPath := path.Join(confDir, "schema.hcl")
 	f, err := ioutil.ReadFile(schemaPath)
@@ -136,8 +169,6 @@ func NewSchema(confDir string) (*DynamicSchema, error) {
 func (s *DynamicSchema) EvaluateSaveBlock(contractName string, vars map[string]cty.Value) (map[string]cty.Value, error) {
 	s.EvalContext.Variables = vars
 	saves := make(map[string]cty.Value)
-
-	fmt.Println(vars)
 
 	for _, c := range s.Contracts {
 		if c.Name == contractName {
