@@ -88,12 +88,6 @@ func main() {
 				Usage:       "Rate limit `LEVEL`, from 1 - 5",
 				Destination: &opts.rateLimit,
 			},
-			&cli.StringFlag{
-				Name:        "chain",
-				Aliases:     []string{"c"},
-				Usage:       "The chain name",
-				Destination: &opts.chain,
-			},
 		},
 		Commands: []*cli.Command{
 			{
@@ -192,7 +186,7 @@ func Run(opts ApolloOpts) error {
 		}
 	}
 
-	rpc, ok := cfg.Rpc[opts.chain]
+	rpc, ok := cfg.Rpc[schema.Chain]
 	if !ok {
 		return fmt.Errorf("no rpc defined for chain %s", opts.chain)
 	}
