@@ -9,8 +9,8 @@ import (
 
 var ParseDecimals = function.New(&function.Spec{
 	Params: []function.Parameter{
-		{Type: cty.Number},
-		{Type: cty.Number},
+		{Name: "Raw", Type: cty.Number},
+		{Name: "Decimals", Type: cty.Number},
 	},
 	Type: func(args []cty.Value) (cty.Type, error) {
 		return cty.Number, nil

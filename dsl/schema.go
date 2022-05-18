@@ -1,7 +1,14 @@
 package dsl
 
 import (
+	"fmt"
 	"io/ioutil"
+	"os"
+	"path"
+
+	"github.com/XMonetae-DeFi/apollo/generate"
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
@@ -12,32 +19,53 @@ import (
 )
 
 type DynamicSchema struct {
-	Chain     string      `hcl:"chain"`
-	Contracts []*Contract `hcl:"contract,block"`
+	Chain     generate.Chain `hcl:"chain"`
+	Contracts []*Contract    `hcl:"contract,block"`
 
-	EvalContext hcl.EvalContext
+	EvalContext *hcl.EvalContext
 }
 
 type Contract struct {
-	Name    string `hcl:"name,label"`
-	Address string `hcl:"address,label"`
-	AbiPath string `hcl:"abi"`
+	Name     string `hcl:"name,label"`
+	Address_ string `hcl:"address,label"`
+	AbiPath  string `hcl:"abi"`
 
 	Methods []*Method `hcl:"method,block"`
 	Events  []*Event  `hcl:"event,block"`
+	Saves   Save      `hcl:"save,block"`
+
+	Abi abi.ABI
+}
+
+func (c Contract) Address() common.Address {
+	return common.HexToAddress(c.Address_)
 }
 
 type Method struct {
-	Name    string            `hcl:"name,label"`
-	Inputs  map[string]string `hcl:"inputs,optional"`
+	Name_   string            `hcl:"name,label"`
+	Inputs_ map[string]string `hcl:"inputs,optional"`
 	Outputs []string          `hcl:"outputs"`
-	Saves   Save              `hcl:"save,block"`
+}
+
+func (m Method) Name() string {
+	return m.Name_
+}
+
+func (m Method) Inputs() map[string]string {
+	return m.Inputs_
 }
 
 type Event struct {
-	Name    string   `hcl:"name,label"`
-	Outputs []string `hcl:"outputs"`
-	Saves   Save     `hcl:"save,block"`
+	Name_    string   `hcl:"name,label"`
+	Outputs_ []string `hcl:"outputs"`
+}
+
+func (e Event) Name() string {
+	return e.Name_
+}
+
+func (e Event) Outputs() []string {
+	return e.Outputs_
 }
 
 type Save struct {
@@ -54,13 +82,16 @@ func InitialContext() hcl.EvalContext {
 		Functions: map[string]function.Function{
 			"upper":          stdlib.UpperFunc,
 			"lower":          stdlib.LowerFunc,
+			"abs":            stdlib.AbsoluteFunc,
 			"parse_decimals": ParseDecimals,
+			"eq":             stdlib.EqualFunc,
 		},
 		Variables: map[string]cty.Value{},
 	})
 }
 
-func NewSchema(schemaPath string) (*DynamicSchema, error) {
+func NewSchema(confDir string) (*DynamicSchema, error) {
+	schemaPath := path.Join(confDir, "schema.hcl")
 	f, err := ioutil.ReadFile(schemaPath)
 	if err != nil {
 		return nil, err
@@ -73,7 +104,7 @@ func NewSchema(schemaPath string) (*DynamicSchema, error) {
 
 	ctx := InitialContext()
 	s := &DynamicSchema{
-		EvalContext: ctx,
+		EvalContext: &ctx,
 	}
 
 	diags = gohcl.DecodeBody(file.Body, &ctx, s)
@@ -81,11 +112,40 @@ func NewSchema(schemaPath string) (*DynamicSchema, error) {
 		return nil, diags.Errs()[0]
 	}
 
+	for _, contract := range s.Contracts {
+		f, err := os.Open(path.Join(confDir, contract.AbiPath))
+		if err != nil {
+			return nil, fmt.Errorf("ParseV2: reading ABI file: %w", err)
+		}
+
+		abi, err := abi.JSON(f)
+		if err != nil {
+			return nil, fmt.Errorf("ParseV2: parsing ABI")
+		}
+
+		contract.Abi = abi
+	}
+
 	return s, nil
 }
 
 // EvaluateSaveBlock updates the evaluation context and
 // evaluates the save block. The results will be returned as a map.
-func EvaluateSaveBlock(ctxVars map[string]cty.Value) {
+func (s *DynamicSchema) EvaluateSaveBlock(vars map[string]cty.Value) (map[string]cty.Value, error) {
+	s.EvalContext.Variables = vars
+	saves := make(map[string]cty.Value)
 
+	for _, c := range s.Contracts {
+		mv := make(map[string]cty.Value)
+		diags := gohcl.DecodeBody(c.Saves.Options, s.EvalContext, &mv)
+		if diags.HasErrors() {
+			return nil, diags.Errs()[0]
+		}
+
+		for k, v := range mv {
+			saves[k] = v
+		}
+	}
+
+	return saves, nil
 }

@@ -6,7 +6,7 @@ import (
 )
 
 func TestNewSchema(t *testing.T) {
-	s, err := NewSchema("../schema.v3.hcl")
+	s, err := NewSchema("..")
 	if err != nil {
 		t.Fatal(err)
 	}

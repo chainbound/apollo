@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/XMonetae-DeFi/apollo/generate"
+	"github.com/XMonetae-DeFi/apollo/dsl"
 )
 
 const (
@@ -36,7 +36,7 @@ func TestConnect(t *testing.T) {
 }
 
 func TestExecCallContracts(t *testing.T) {
-	schema, err := generate.ParseV2("./test")
+	schema, err := dsl.NewSchema("../test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +45,7 @@ func TestExecCallContracts(t *testing.T) {
 
 	blocks := make(chan *big.Int)
 
-	res := make(chan CallResult)
+	res := make(chan EvaluationResult)
 	service.RunMethodCaller(schema, true, blocks, res, 10)
 
 	// Latest block, then close
@@ -53,14 +53,10 @@ func TestExecCallContracts(t *testing.T) {
 	close(blocks)
 
 	for res := range res {
-		fmt.Printf("Result from [%s]\n", res.ContractName)
-		for k, v := range res.Inputs {
+		for k, v := range res.Res {
 			fmt.Println(k, ":", v)
 		}
 
-		for k, v := range res.Outputs {
-			fmt.Println(k, ":", v)
-		}
 	}
 }
 
@@ -90,13 +86,13 @@ func TestExecCallContracts(t *testing.T) {
 // }
 
 func TestListenForEvents(t *testing.T) {
-	schema, err := generate.ParseV2("./test")
+	schema, err := dsl.NewSchema("../test")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	service := newChainService()
-	res := make(chan CallResult)
+	res := make(chan EvaluationResult)
 	maxWorkers := 32
 
 	service.ListenForEvents(schema, res, maxWorkers)

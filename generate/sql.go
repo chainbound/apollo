@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/zclconf/go-cty/cty"
 )
 
 type Column struct {
@@ -13,23 +14,23 @@ type Column struct {
 	Final bool // utility flag for setting types, finalized when type is known
 }
 
-func GenerateCreateDDL(schema ContractSchemaV2) (string, error) {
-	columns, err := GenerateColumns(schema)
+func GenerateCreateDDL(tableName string, cols map[string]cty.Value) (string, error) {
+	columns, err := GenerateColumns(cols)
 	if err != nil {
 		return "", err
 	}
 
-	for _, m := range schema.Methods() {
-		columns = AddColumnTypesFromABI(m.Name(), schema.Abi, columns)
-	}
+	// for _, m := range schema.Methods() {
+	// 	columns = AddColumnTypesFromABI(m.Name(), schema.Abi, columns)
+	// }
 
-	for _, e := range schema.Events() {
-		columns = AddColumnTypesFromABI(e.Name(), schema.Abi, columns)
-	}
+	// for _, e := range schema.Events() {
+	// 	columns = AddColumnTypesFromABI(e.Name(), schema.Abi, columns)
+	// }
 
-	ddl := fmt.Sprintf("DROP TABLE IF EXISTS %s;\n", schema.Name())
+	ddl := fmt.Sprintf("DROP TABLE IF EXISTS %s;\n", tableName)
 
-	ddl += fmt.Sprintf("CREATE TABLE %s (\n\tid SERIAL PRIMARY KEY,\n", schema.Name())
+	ddl += fmt.Sprintf("CREATE TABLE %s (\n\tid SERIAL PRIMARY KEY,\n", tableName)
 	for _, col := range columns {
 		ddl += fmt.Sprintf("\t%s %s,\n", col.Name, col.Type)
 	}
@@ -97,55 +98,67 @@ func AddColumnTypesFromABI(name string, abi abi.ABI, columns []*Column) []*Colum
 	return columns
 }
 
-func GenerateColumns(cs ContractSchemaV2) ([]*Column, error) {
-	columns := []*Column{
-		{
-			Name:  "timestamp",
-			Type:  ABIToSQLType(Uint256),
+func GenerateColumns(cols map[string]cty.Value) ([]Column, error) {
+	// columns := []*Column{
+	// 	{
+	// 		Name:  "timestamp",
+	// 		Type:  ABIToSQLType(Uint256),
+	// 		Final: true,
+	// 	},
+	// 	{
+	// 		Name:  "blocknumber",
+	// 		Type:  ABIToSQLType(Uint256),
+	// 		Final: true,
+	// 	},
+	// 	{
+	// 		Name:  "chain",
+	// 		Type:  ABIToSQLType(String),
+	// 		Final: true,
+	// 	},
+	// 	{
+	// 		Name:  "contract",
+	// 		Type:  ABIToSQLType(Address),
+	// 		Final: true,
+	// 	},
+	// }
+
+	columns := make([]Column, len(cols))
+
+	i := 0
+	for k, v := range cols {
+		columns[i] = Column{
+			Name:  k,
+			Type:  CtyToSQLType(v.Type()),
 			Final: true,
-		},
-		{
-			Name:  "blocknumber",
-			Type:  ABIToSQLType(Uint256),
-			Final: true,
-		},
-		{
-			Name:  "chain",
-			Type:  ABIToSQLType(String),
-			Final: true,
-		},
-		{
-			Name:  "contract",
-			Type:  ABIToSQLType(Address),
-			Final: true,
-		},
+		}
 	}
 
 	// The only dynamic table columns are the arguments and the return values
-	for _, call := range cs.Methods() {
-		for arg := range call.Inputs() {
-			columns = append(columns, &Column{
-				Name: arg,
-				// Type will be read from ABI
-			})
-		}
+	// for _, call := range cs.Methods() {
+	// 	for arg := range call.Inputs() {
+	// 		columns = append(columns, &Column{
+	// 			Name: arg,
+	// 			// Type will be read from ABI
+	// 		})
+	// 	}
 
-		for _, output := range call.Outputs() {
-			columns = append(columns, &Column{
-				Name: output,
-				// Type will be read from ABI
-			})
-		}
-	}
+	// 	for _, output := range call.Outputs() {
+	// 		columns = append(columns, &Column{
+	// 			Name: output,
+	// 			// Type will be read from ABI
+	// 		})
+	// 	}
+
+	// }
 
 	// Generate outputs for events
-	for _, events := range cs.Events() {
-		for _, output := range events.Outputs() {
-			columns = append(columns, &Column{
-				Name: output,
-			})
-		}
-	}
+	// for _, events := range cs.Events() {
+	// 	for _, output := range events.Outputs() {
+	// 		columns = append(columns, &Column{
+	// 			Name: output,
+	// 		})
+	// 	}
+	// }
 
 	return columns, nil
 }

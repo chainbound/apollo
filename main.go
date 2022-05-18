@@ -13,7 +13,7 @@ import (
 
 	"github.com/XMonetae-DeFi/apollo/chainservice"
 	"github.com/XMonetae-DeFi/apollo/db"
-	"github.com/XMonetae-DeFi/apollo/generate"
+	"github.com/XMonetae-DeFi/apollo/dsl"
 	"github.com/XMonetae-DeFi/apollo/output"
 	"github.com/urfave/cli/v2"
 )
@@ -166,15 +166,16 @@ func Run(opts ApolloOpts) error {
 		return err
 	}
 
-	schema, err := generate.ParseV2(confDir)
+	schema, err := dsl.NewSchema(confDir)
 	if err != nil {
 		return err
 	}
 
 	// Validate the schema
-	if err := schema.Validate(); err != nil {
-		log.Fatal(err)
-	}
+	// TODO
+	// if err := schema.Validate(); err != nil {
+	// 	log.Fatal(err)
+	// }
 
 	cfg.DbSettings.DefaultTimeout = time.Second * 20
 
@@ -204,21 +205,24 @@ func Run(opts ApolloOpts) error {
 
 	csv := output.NewCsvHandler()
 
-	for _, s := range schema.Contracts {
-		if opts.db {
-			err = pdb.CreateTable(ctx, *s)
-			if err != nil {
-				log.Fatal(err)
-			}
-		}
+	// PROBLEM: there's no easy way to know the column types in advance,
+	// so we're probably going to have to move the table creation logic
+	// into the output handler.
+	// for _, s := range schema.Contracts {
+	// 	if opts.db {
+	// 		err = pdb.CreateTable(ctx, *s)
+	// 		if err != nil {
+	// 			log.Fatal(err)
+	// 		}
+	// 	}
 
-		if opts.csv {
-			err = csv.AddCsv(*s)
-			if err != nil {
-				log.Fatal(err)
-			}
-		}
-	}
+	// 	if opts.csv {
+	// 		err = csv.AddCsv(*s)
+	// 		if err != nil {
+	// 			log.Fatal(err)
+	// 		}
+	// 	}
+	// }
 
 	out := output.NewOutputHandler()
 
@@ -237,7 +241,7 @@ func Run(opts ApolloOpts) error {
 	// First check if there are any methods to be called, it might just be events
 	maxWorkers := 32
 	blocks := make(chan *big.Int)
-	chainResults := make(chan chainservice.CallResult)
+	chainResults := make(chan chainservice.EvaluationResult)
 
 	service.RunMethodCaller(schema, opts.realtime, blocks, chainResults, maxWorkers)
 
@@ -271,9 +275,7 @@ func Run(opts ApolloOpts) error {
 			continue
 		}
 
-		if err := out.HandleResult(res); err != nil {
-			fmt.Println(err)
-		}
+		out.HandleResult(res.Name, res.Res)
 	}
 
 	return nil

@@ -7,12 +7,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/XMonetae-DeFi/apollo/dsl"
 	"github.com/XMonetae-DeFi/apollo/generate"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/gocty"
 )
 
 type ChainService struct {
@@ -63,13 +66,54 @@ type CallResult struct {
 	ContractAddress common.Address
 	BlockNumber     uint64
 	Timestamp       uint64
-	Inputs          map[string]string
-	Outputs         map[string]string
+	TxHash          common.Hash
+	Inputs          map[string]any
+	Outputs         map[string]any
+}
+
+// TODO: outputs and inputs should have dynamic types, not just strings
+func (cr CallResult) GenerateVarMap() map[string]cty.Value {
+	m := make(map[string]cty.Value)
+
+	m["contract_address"], _ = gocty.ToCtyValue(cr.ContractAddress.String(), cty.String)
+
+	m["blocknumber"], _ = gocty.ToCtyValue(cr.BlockNumber, cty.Number)
+	m["timestamp"], _ = gocty.ToCtyValue(cr.Timestamp, cty.Number)
+
+	for k, v := range cr.Inputs {
+		switch v.(type) {
+		case string:
+			m[k], _ = gocty.ToCtyValue(v, cty.String)
+		default:
+			m[k], _ = gocty.ToCtyValue(v, cty.Number)
+		}
+	}
+
+	for k, v := range cr.Outputs {
+		switch v.(type) {
+		case string:
+			m[k], _ = gocty.ToCtyValue(v, cty.String)
+		default:
+			m[k], _ = gocty.ToCtyValue(v, cty.Number)
+		}
+	}
+
+	if cr.Type == Event {
+		m["tx_hash"], _ = gocty.ToCtyValue(cr.TxHash.String(), cty.String)
+	}
+
+	return m
+}
+
+type EvaluationResult struct {
+	Name string
+	Err  error
+	Res  map[string]cty.Value
 }
 
 // RunMethodCaller starts a listener on the `blocks` channel, and on every incoming block it will execute all methods concurrently
 // on the given blockNumber.
-func (c *ChainService) RunMethodCaller(schema *generate.SchemaV2, realtime bool, blocks <-chan *big.Int, out chan<- CallResult, maxWorkers int) {
+func (c *ChainService) RunMethodCaller(schema *dsl.DynamicSchema, realtime bool, blocks <-chan *big.Int, out chan<- EvaluationResult, maxWorkers int) {
 	res := make(chan CallResult)
 	var wg sync.WaitGroup
 
@@ -109,31 +153,50 @@ func (c *ChainService) RunMethodCaller(schema *generate.SchemaV2, realtime bool,
 				r.Timestamp = uint64(time.Now().UnixMilli() / 1000)
 			}
 
-			out <- r
+			if r.Err != nil {
+				out <- EvaluationResult{
+					Name: r.ContractName,
+					Err:  fmt.Errorf("calling api: %w", r.Err),
+				}
+				return
+			}
+
+			save, err := schema.EvaluateSaveBlock(r.GenerateVarMap())
+			if err != nil {
+				out <- EvaluationResult{
+					Name: r.ContractName,
+					Err:  fmt.Errorf("evaluating save block: %w", err),
+				}
+				return
+			}
+
+			out <- EvaluationResult{
+				Name: r.ContractName,
+				Res:  save,
+			}
 		}
 		close(out)
 	}()
 }
 
 // CallMethods executes all the methods on the contract, and aggregates their results into a CallResult
-func (c ChainService) CallMethods(chain generate.Chain, contract *generate.ContractSchemaV2, blockNumber *big.Int, out chan<- CallResult) {
-	inputs := make(map[string]string)
-	outputs := make(map[string]string)
+func (c ChainService) CallMethods(chain generate.Chain, contract *dsl.Contract, blockNumber *big.Int, out chan<- CallResult) {
+	inputs := make(map[string]any)
+	outputs := make(map[string]any)
 
 	// If there are no methods on the contract, return
-	if len(contract.Methods()) == 0 {
+	if len(contract.Methods) == 0 {
 		return
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), c.defaultTimeout)
 	defer cancel()
 
-	for _, method := range contract.Methods() {
-
+	for _, method := range contract.Methods {
 		msg, err := generate.BuildCallMsg(contract.Address(), method, contract.Abi)
 		if err != nil {
 			out <- CallResult{
-				Err: err,
+				Err: fmt.Errorf("building call message: %w", err),
 			}
 			return
 		}
@@ -141,7 +204,7 @@ func (c ChainService) CallMethods(chain generate.Chain, contract *generate.Contr
 		raw, err := c.client.CallContract(ctx, msg, blockNumber)
 		if err != nil {
 			out <- CallResult{
-				Err: err,
+				Err: fmt.Errorf("calling contract method: %w", err),
 			}
 			return
 		}
@@ -150,14 +213,14 @@ func (c ChainService) CallMethods(chain generate.Chain, contract *generate.Contr
 		results, err := contract.Abi.Unpack(method.Name(), raw)
 		if err != nil {
 			out <- CallResult{
-				Err: err,
+				Err: fmt.Errorf("unpacking abi for %s: %w", method.Name(), err),
 			}
 			return
 		}
 
-		for _, o := range method.Outputs() {
+		for _, o := range method.Outputs {
 			result := matchABIValue(o, contract.Abi.Methods[method.Name()].Outputs, results)
-			outputs[o] = fmt.Sprint(result)
+			outputs[o] = result
 		}
 
 		for k, v := range method.Inputs() {
@@ -186,14 +249,14 @@ func (c ChainService) CallMethods(chain generate.Chain, contract *generate.Contr
 		BlockNumber:     actualBlockNumber,
 		Timestamp:       block.Time,
 		Chain:           chain,
-		ContractName:    contract.Name(),
+		ContractName:    contract.Name,
 		ContractAddress: contract.Address(),
 		Inputs:          inputs,
 		Outputs:         outputs,
 	}
 }
 
-func (c ChainService) FilterEvents(schema *generate.SchemaV2, fromBlock, toBlock *big.Int, out chan<- CallResult, maxWorkers int) {
+func (c ChainService) FilterEvents(schema *dsl.DynamicSchema, fromBlock, toBlock *big.Int, out chan<- EvaluationResult, maxWorkers int) {
 	res := make(chan CallResult)
 	var wg sync.WaitGroup
 
@@ -204,7 +267,7 @@ func (c ChainService) FilterEvents(schema *generate.SchemaV2, fromBlock, toBlock
 	nworkers := 1
 	go func() {
 		for _, cs := range schema.Contracts {
-			for _, event := range cs.Events() {
+			for _, event := range cs.Events {
 				// Get first topic in Bytes (to filter events)
 				topic, err := generate.GetTopic(event.Name(), cs.Abi)
 				if err != nil {
@@ -287,7 +350,27 @@ func (c ChainService) FilterEvents(schema *generate.SchemaV2, fromBlock, toBlock
 	// If we called more than one method, we want to aggregate the results
 	go func() {
 		for r := range res {
-			out <- r
+			if r.Err != nil {
+				out <- EvaluationResult{
+					Name: r.ContractName,
+					Err:  fmt.Errorf("calling api: %w", r.Err),
+				}
+				return
+			}
+
+			save, err := schema.EvaluateSaveBlock(r.GenerateVarMap())
+			if err != nil {
+				out <- EvaluationResult{
+					Name: r.ContractName,
+					Err:  fmt.Errorf("evaluating save block: %w", err),
+				}
+				return
+			}
+
+			out <- EvaluationResult{
+				Name: r.ContractName,
+				Res:  save,
+			}
 		}
 
 		// TODO: Do something about this
@@ -295,7 +378,7 @@ func (c ChainService) FilterEvents(schema *generate.SchemaV2, fromBlock, toBlock
 	}()
 }
 
-func (c ChainService) ListenForEvents(schema *generate.SchemaV2, out chan<- CallResult, maxWorkers int) {
+func (c ChainService) ListenForEvents(schema *dsl.DynamicSchema, out chan<- EvaluationResult, maxWorkers int) {
 	res := make(chan CallResult)
 	logChan := make(chan types.Log)
 	var wg sync.WaitGroup
@@ -303,9 +386,9 @@ func (c ChainService) ListenForEvents(schema *generate.SchemaV2, out chan<- Call
 	nworkers := 1
 	go func() {
 		for _, cs := range schema.Contracts {
-			for _, event := range cs.Events() {
+			for _, event := range cs.Events {
 				// Get first topic in Bytes (to filter events)
-				topic, err := generate.GetTopic(event.Name(), cs.Abi)
+				topic, err := generate.GetTopic(event.Name_, cs.Abi)
 				if err != nil {
 					res <- CallResult{
 						Err: fmt.Errorf("generating topic id: %w", err),
@@ -314,12 +397,12 @@ func (c ChainService) ListenForEvents(schema *generate.SchemaV2, out chan<- Call
 				}
 
 				indexedEvents := make(map[string]int)
-				abiEvent := cs.Abi.Events[event.Name()]
+				abiEvent := cs.Abi.Events[event.Name_]
 
 				// Collect the indexes for the events that are "indexed" (they appear in the "topics" of the log)
 				for i, arg := range abiEvent.Inputs {
 					if arg.Indexed {
-						for _, o := range event.Outputs() {
+						for _, o := range event.Outputs_ {
 							if arg.Name == o {
 								// First index is always the main topic
 								indexedEvents[arg.Name] = i + 1
@@ -376,36 +459,57 @@ func (c ChainService) ListenForEvents(schema *generate.SchemaV2, out chan<- Call
 	go func() {
 		for r := range res {
 			r.Timestamp = uint64(time.Now().UnixMilli() / 1000)
+			if r.Err != nil {
+				out <- EvaluationResult{
+					Name: r.ContractName,
+					Err:  fmt.Errorf("calling api: %w", r.Err),
+				}
+				return
+			}
 
-			out <- r
+			save, err := schema.EvaluateSaveBlock(r.GenerateVarMap())
+			if err != nil {
+				out <- EvaluationResult{
+					Name: r.ContractName,
+					Err:  fmt.Errorf("evaluating save block: %w", err),
+				}
+				return
+			}
+
+			out <- EvaluationResult{
+				Name: r.ContractName,
+				Res:  save,
+			}
 		}
 
 		close(out)
 	}()
 }
 
-func (c ChainService) HandleLog(log types.Log, chain generate.Chain, cs *generate.ContractSchemaV2, event generate.EventV2, indexedEvents map[string]int) (*CallResult, error) {
+func (c ChainService) HandleLog(log types.Log, chain generate.Chain, cs *dsl.Contract, event *dsl.Event, indexedEvents map[string]int) (*CallResult, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), c.defaultTimeout)
 	defer cancel()
 
-	outputs := make(map[string]string)
-	for _, event := range event.Outputs() {
+	outputs := make(map[string]any)
+	for _, event := range event.Outputs_ {
 		if idx, ok := indexedEvents[event]; ok {
 			outputs[event] = fmt.Sprint(common.BytesToAddress(log.Topics[idx][:]))
 		}
 	}
 
 	tmp := make(map[string]any)
-	if len(outputs) < len(event.Outputs()) {
-		err := cs.Abi.UnpackIntoMap(tmp, event.Name(), log.Data)
+	if len(outputs) < len(event.Outputs_) {
+		err := cs.Abi.UnpackIntoMap(tmp, event.Name_, log.Data)
 		if err != nil {
 			return nil, fmt.Errorf("unpacking log.Data: %w", err)
 		}
 	}
 
 	for k, v := range tmp {
-		outputs[k] = fmt.Sprint(v)
+		outputs[k] = v
 	}
+
+	fmt.Println(outputs)
 
 	h, err := c.client.HeaderByNumber(ctx, big.NewInt(int64(log.BlockNumber)))
 	if err != nil {
@@ -417,9 +521,10 @@ func (c ChainService) HandleLog(log types.Log, chain generate.Chain, cs *generat
 	return &CallResult{
 		Type:            Event,
 		Chain:           chain,
-		ContractName:    cs.Name(),
+		ContractName:    cs.Name,
 		ContractAddress: cs.Address(),
 		BlockNumber:     log.BlockNumber,
+		TxHash:          log.TxHash,
 		Timestamp:       h.Time,
 		Outputs:         outputs,
 	}, nil

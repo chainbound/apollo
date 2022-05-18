@@ -1,7 +1,6 @@
 package generate
 
 import (
-	"fmt"
 	"testing"
 )
 
@@ -11,10 +10,12 @@ func TestGenerateCsvHeaders(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for _, s := range schema.Contracts {
-		c := GenerateCsvHeader(*s)
+	_ = schema
 
-		fmt.Println(c)
-	}
+	// for _, s := range schema.Contracts {
+	// 	c := GenerateCsvHeader(*s)
+
+	// 	fmt.Println(c)
+	// }
 
 }
