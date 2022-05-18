@@ -216,7 +216,7 @@ func Run(opts ApolloOpts) error {
 	// First check if there are any methods to be called, it might just be events
 	maxWorkers := 32
 	blocks := make(chan *big.Int)
-	chainResults := make(chan chainservice.EvaluationResult)
+	chainResults := make(chan chainservice.CallResult)
 
 	service.RunMethodCaller(schema, opts.realtime, blocks, chainResults, maxWorkers)
 
@@ -250,7 +250,12 @@ func Run(opts ApolloOpts) error {
 			continue
 		}
 
-		out.HandleResult(res.Name, res.Res)
+		save, err := schema.EvaluateSaveBlock(res.ContractName, res.GenerateVarMap())
+		if err != nil {
+			return fmt.Errorf("evaluating save block: %w", err)
+		}
+
+		out.HandleResult(res.ContractName, save)
 	}
 
 	return nil

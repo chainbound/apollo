@@ -113,7 +113,7 @@ type EvaluationResult struct {
 
 // RunMethodCaller starts a listener on the `blocks` channel, and on every incoming block it will execute all methods concurrently
 // on the given blockNumber.
-func (c *ChainService) RunMethodCaller(schema *dsl.DynamicSchema, realtime bool, blocks <-chan *big.Int, out chan<- EvaluationResult, maxWorkers int) {
+func (c *ChainService) RunMethodCaller(schema *dsl.DynamicSchema, realtime bool, blocks <-chan *big.Int, out chan<- CallResult, maxWorkers int) {
 	res := make(chan CallResult)
 	var wg sync.WaitGroup
 
@@ -153,27 +153,7 @@ func (c *ChainService) RunMethodCaller(schema *dsl.DynamicSchema, realtime bool,
 				r.Timestamp = uint64(time.Now().UnixMilli() / 1000)
 			}
 
-			if r.Err != nil {
-				out <- EvaluationResult{
-					Name: r.ContractName,
-					Err:  fmt.Errorf("calling api: %w", r.Err),
-				}
-				return
-			}
-
-			save, err := schema.EvaluateSaveBlock(r.ContractName, r.GenerateVarMap())
-			if err != nil {
-				out <- EvaluationResult{
-					Name: r.ContractName,
-					Err:  fmt.Errorf("evaluating save block: %w", err),
-				}
-				return
-			}
-
-			out <- EvaluationResult{
-				Name: r.ContractName,
-				Res:  save,
-			}
+			out <- r
 		}
 		close(out)
 	}()
@@ -256,7 +236,7 @@ func (c ChainService) CallMethods(chain dsl.Chain, contract *dsl.Contract, block
 	}
 }
 
-func (c ChainService) FilterEvents(schema *dsl.DynamicSchema, fromBlock, toBlock *big.Int, out chan<- EvaluationResult, maxWorkers int) {
+func (c ChainService) FilterEvents(schema *dsl.DynamicSchema, fromBlock, toBlock *big.Int, out chan<- CallResult, maxWorkers int) {
 	res := make(chan CallResult)
 	var wg sync.WaitGroup
 
@@ -350,27 +330,7 @@ func (c ChainService) FilterEvents(schema *dsl.DynamicSchema, fromBlock, toBlock
 	// If we called more than one method, we want to aggregate the results
 	go func() {
 		for r := range res {
-			if r.Err != nil {
-				out <- EvaluationResult{
-					Name: r.ContractName,
-					Err:  fmt.Errorf("calling api: %w", r.Err),
-				}
-				return
-			}
-
-			save, err := schema.EvaluateSaveBlock(r.ContractName, r.GenerateVarMap())
-			if err != nil {
-				out <- EvaluationResult{
-					Name: r.ContractName,
-					Err:  fmt.Errorf("evaluating save block: %w", err),
-				}
-				return
-			}
-
-			out <- EvaluationResult{
-				Name: r.ContractName,
-				Res:  save,
-			}
+			out <- r
 		}
 
 		// TODO: Do something about this
@@ -378,7 +338,7 @@ func (c ChainService) FilterEvents(schema *dsl.DynamicSchema, fromBlock, toBlock
 	}()
 }
 
-func (c ChainService) ListenForEvents(schema *dsl.DynamicSchema, out chan<- EvaluationResult, maxWorkers int) {
+func (c ChainService) ListenForEvents(schema *dsl.DynamicSchema, out chan<- CallResult, maxWorkers int) {
 	res := make(chan CallResult)
 	logChan := make(chan types.Log)
 	var wg sync.WaitGroup
@@ -459,27 +419,8 @@ func (c ChainService) ListenForEvents(schema *dsl.DynamicSchema, out chan<- Eval
 	go func() {
 		for r := range res {
 			r.Timestamp = uint64(time.Now().UnixMilli() / 1000)
-			if r.Err != nil {
-				out <- EvaluationResult{
-					Name: r.ContractName,
-					Err:  fmt.Errorf("calling api: %w", r.Err),
-				}
-				return
-			}
 
-			save, err := schema.EvaluateSaveBlock(r.ContractName, r.GenerateVarMap())
-			if err != nil {
-				out <- EvaluationResult{
-					Name: r.ContractName,
-					Err:  fmt.Errorf("evaluating save block: %w", err),
-				}
-				return
-			}
-
-			out <- EvaluationResult{
-				Name: r.ContractName,
-				Res:  save,
-			}
+			out <- r
 		}
 
 		close(out)
