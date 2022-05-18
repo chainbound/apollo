@@ -6,7 +6,6 @@ import (
 	"os"
 	"path"
 
-	"github.com/XMonetae-DeFi/apollo/generate"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 
@@ -18,9 +17,20 @@ import (
 	"github.com/zclconf/go-cty/cty/function/stdlib"
 )
 
+type Chain string
+
+const (
+	ETHEREUM Chain = "ethereum"
+	AVAX     Chain = "avax"
+	ARBITRUM Chain = "arbitrum"
+	OPTIMISM Chain = "optimism"
+	POLYGON  Chain = "polygon"
+	FANTOM   Chain = "fantom"
+)
+
 type DynamicSchema struct {
-	Chain     generate.Chain `hcl:"chain"`
-	Contracts []*Contract    `hcl:"contract,block"`
+	Chain     Chain       `hcl:"chain"`
+	Contracts []*Contract `hcl:"contract,block"`
 
 	EvalContext *hcl.EvalContext
 }
@@ -131,19 +141,23 @@ func NewSchema(confDir string) (*DynamicSchema, error) {
 
 // EvaluateSaveBlock updates the evaluation context and
 // evaluates the save block. The results will be returned as a map.
-func (s *DynamicSchema) EvaluateSaveBlock(vars map[string]cty.Value) (map[string]cty.Value, error) {
+func (s *DynamicSchema) EvaluateSaveBlock(contractName string, vars map[string]cty.Value) (map[string]cty.Value, error) {
 	s.EvalContext.Variables = vars
 	saves := make(map[string]cty.Value)
 
-	for _, c := range s.Contracts {
-		mv := make(map[string]cty.Value)
-		diags := gohcl.DecodeBody(c.Saves.Options, s.EvalContext, &mv)
-		if diags.HasErrors() {
-			return nil, diags.Errs()[0]
-		}
+	fmt.Println(vars)
 
-		for k, v := range mv {
-			saves[k] = v
+	for _, c := range s.Contracts {
+		if c.Name == contractName {
+			mv := make(map[string]cty.Value)
+			diags := gohcl.DecodeBody(c.Saves.Options, s.EvalContext, &mv)
+			if diags.HasErrors() {
+				return nil, diags.Errs()[0]
+			}
+
+			for k, v := range mv {
+				saves[k] = v
+			}
 		}
 	}
 

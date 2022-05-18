@@ -60,7 +60,7 @@ const (
 
 type CallResult struct {
 	Err             error
-	Chain           generate.Chain
+	Chain           dsl.Chain
 	Type            ResultType
 	ContractName    string
 	ContractAddress common.Address
@@ -161,7 +161,7 @@ func (c *ChainService) RunMethodCaller(schema *dsl.DynamicSchema, realtime bool,
 				return
 			}
 
-			save, err := schema.EvaluateSaveBlock(r.GenerateVarMap())
+			save, err := schema.EvaluateSaveBlock(r.ContractName, r.GenerateVarMap())
 			if err != nil {
 				out <- EvaluationResult{
 					Name: r.ContractName,
@@ -180,7 +180,7 @@ func (c *ChainService) RunMethodCaller(schema *dsl.DynamicSchema, realtime bool,
 }
 
 // CallMethods executes all the methods on the contract, and aggregates their results into a CallResult
-func (c ChainService) CallMethods(chain generate.Chain, contract *dsl.Contract, blockNumber *big.Int, out chan<- CallResult) {
+func (c ChainService) CallMethods(chain dsl.Chain, contract *dsl.Contract, blockNumber *big.Int, out chan<- CallResult) {
 	inputs := make(map[string]any)
 	outputs := make(map[string]any)
 
@@ -358,7 +358,7 @@ func (c ChainService) FilterEvents(schema *dsl.DynamicSchema, fromBlock, toBlock
 				return
 			}
 
-			save, err := schema.EvaluateSaveBlock(r.GenerateVarMap())
+			save, err := schema.EvaluateSaveBlock(r.ContractName, r.GenerateVarMap())
 			if err != nil {
 				out <- EvaluationResult{
 					Name: r.ContractName,
@@ -467,7 +467,7 @@ func (c ChainService) ListenForEvents(schema *dsl.DynamicSchema, out chan<- Eval
 				return
 			}
 
-			save, err := schema.EvaluateSaveBlock(r.GenerateVarMap())
+			save, err := schema.EvaluateSaveBlock(r.ContractName, r.GenerateVarMap())
 			if err != nil {
 				out <- EvaluationResult{
 					Name: r.ContractName,
@@ -486,7 +486,7 @@ func (c ChainService) ListenForEvents(schema *dsl.DynamicSchema, out chan<- Eval
 	}()
 }
 
-func (c ChainService) HandleLog(log types.Log, chain generate.Chain, cs *dsl.Contract, event *dsl.Event, indexedEvents map[string]int) (*CallResult, error) {
+func (c ChainService) HandleLog(log types.Log, chain dsl.Chain, cs *dsl.Contract, event *dsl.Event, indexedEvents map[string]int) (*CallResult, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), c.defaultTimeout)
 	defer cancel()
 
