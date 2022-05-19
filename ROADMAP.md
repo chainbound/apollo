@@ -23,7 +23,9 @@
       - You would be able to monitor mempool transactions and save them based on a predicate. Same as above. 
   - [ ] Different stream output option for latency-sensitive operations (like mempool monitoring): i.e. Websocket, SSE 
       - Latency sensitive operations would probably also need different evaluation options. I think evaluating everything in the save block might take some time, would need to benchmark that. An option is to just not have a save block and stream everything as-is, let the application take care of decoding.
-  - [ ] Aggregation operations like group by?
+  - [ ] JSON output
+  - [ ] Generalized SQL output (MySQL, SQL Server)
+  - [ ] Aggregation operations like group by, sum, avg
 
 - [ ] **v1.2.0-beta**
   - [ ] Transaction simulation at certain times / events

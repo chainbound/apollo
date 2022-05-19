@@ -48,7 +48,6 @@ save {
 }
 
 // EVENT IDEAS ===========================================================
-
 // Standalone events
 event Transfer {
   abi = "erc20.abi.json"
