@@ -9,6 +9,7 @@ import (
 
 	"github.com/XMonetae-DeFi/apollo/dsl"
 	"github.com/XMonetae-DeFi/apollo/generate"
+	"github.com/XMonetae-DeFi/apollo/log"
 	atypes "github.com/XMonetae-DeFi/apollo/types"
 
 	"github.com/ethereum/go-ethereum"
@@ -16,11 +17,13 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/rs/zerolog"
 	"github.com/zclconf/go-cty/cty"
 )
 
 type ChainService struct {
 	client *ethclient.Client
+	logger zerolog.Logger
 
 	defaultTimeout time.Duration
 	rateLimit      int
@@ -30,6 +33,7 @@ func NewChainService(defaultTimeout time.Duration, rateLimit int) *ChainService 
 	return &ChainService{
 		defaultTimeout: defaultTimeout,
 		rateLimit:      rateLimit,
+		logger:         log.NewLogger("chainservice"),
 	}
 }
 
@@ -38,6 +42,8 @@ func (c *ChainService) Connect(ctx context.Context, rpcUrl string) (*ChainServic
 	if err != nil {
 		return nil, fmt.Errorf("Connect: %w", err)
 	}
+
+	c.logger.Debug().Str("rpc", rpcUrl).Msg("connected to rpc")
 
 	c.client = client
 	return c, nil
@@ -116,6 +122,8 @@ func (c ChainService) CallMethods(chain atypes.Chain, contract *dsl.Contract, bl
 		return
 	}
 
+	c.logger.Debug().Str("contract", contract.Name).Msg("calling contract methods")
+
 	ctx, cancel := context.WithTimeout(context.Background(), c.defaultTimeout)
 	defer cancel()
 
@@ -127,6 +135,7 @@ func (c ChainService) CallMethods(chain atypes.Chain, contract *dsl.Contract, bl
 			}
 			return
 		}
+		c.logger.Trace().Str("to", msg.To.String()).Str("input", common.Bytes2Hex(msg.Data)).Msg("built call message")
 
 		raw, err := c.client.CallContract(ctx, msg, blockNumber)
 		if err != nil {
@@ -135,6 +144,7 @@ func (c ChainService) CallMethods(chain atypes.Chain, contract *dsl.Contract, bl
 			}
 			return
 		}
+		c.logger.Trace().Str("to", msg.To.String()).Str("method", method.Name()).Msg("called method")
 
 		// We only want the correct value here (specified in the schema)
 		results, err := contract.Abi.Unpack(method.Name(), raw)
@@ -195,6 +205,7 @@ func (c ChainService) FilterEvents(schema *dsl.DynamicSchema, fromBlock, toBlock
 	go func() {
 		for _, cs := range schema.Contracts {
 			for _, event := range cs.Events {
+				c.logger.Debug().Str("contract", cs.Name).Str("event", event.Name()).Msg("filtering contract events")
 				// Get first topic in Bytes (to filter events)
 				topic, err := generate.GetTopic(event.Name(), cs.Abi)
 				if err != nil {
@@ -243,6 +254,8 @@ func (c ChainService) FilterEvents(schema *dsl.DynamicSchema, fromBlock, toBlock
 						}
 						return
 					}
+
+					c.logger.Trace().Str("start_block", start.String()).Str("end_block", end.String()).Int("n_logs", len(logs)).Msg("filtered logs")
 
 					for _, log := range logs {
 						wg.Add(1)
@@ -333,6 +346,8 @@ func (c ChainService) ListenForEvents(schema *dsl.DynamicSchema, out chan<- atyp
 					}
 					return
 				}
+
+				c.logger.Debug().Str("contract", cs.Name).Str("event", event.Name()).Msg("subscribed to events")
 
 				defer sub.Unsubscribe()
 

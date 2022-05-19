@@ -8,7 +8,9 @@ import (
 	"time"
 
 	"github.com/XMonetae-DeFi/apollo/generate"
+	"github.com/XMonetae-DeFi/apollo/log"
 	_ "github.com/lib/pq"
+	"github.com/rs/zerolog"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -28,6 +30,7 @@ type DB struct {
 	Settings DbSettings
 	pdb      *sql.DB
 	connStr  string
+	logger   zerolog.Logger
 }
 
 func NewDB(s DbSettings) *DB {
@@ -36,6 +39,7 @@ func NewDB(s DbSettings) *DB {
 	return &DB{
 		Settings: s,
 		connStr:  connStr,
+		logger:   log.NewLogger("db"),
 	}
 }
 
@@ -44,6 +48,8 @@ func (db *DB) Connect() (*DB, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	db.logger.Debug().Str("conn_str", db.connStr).Msg("connected to db")
 
 	db.pdb = pdb
 	return db, nil
@@ -68,10 +74,14 @@ func (db DB) CreateTable(ctx context.Context, name string, cols map[string]cty.V
 		return err
 	}
 
+	db.logger.Trace().Str("ddl", ddl).Msg("generated create stmt")
 	_, err = db.pdb.ExecContext(ctx, ddl)
 	if err != nil {
 		return err
 	}
+
+	db.logger.Debug().Str("table_name", name).Msg("created table")
+
 	return nil
 }
 
@@ -80,10 +90,13 @@ func (db DB) InsertResult(name string, toInsert map[string]string) error {
 	defer cancel()
 
 	ddl := generate.GenerateInsertSQL(name, toInsert)
+	db.logger.Trace().Str("ddl", ddl).Msg("generated insert stmt")
 
 	_, err := db.pdb.ExecContext(ctx, ddl)
 	if err != nil {
 		return err
 	}
+
+	db.logger.Debug().Str("table_name", name).Msg("inserted result")
 	return nil
 }

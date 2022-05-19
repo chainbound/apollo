@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"math/big"
 	"os"
 	"path"
@@ -14,8 +13,10 @@ import (
 	"github.com/XMonetae-DeFi/apollo/chainservice"
 	"github.com/XMonetae-DeFi/apollo/db"
 	"github.com/XMonetae-DeFi/apollo/dsl"
+	"github.com/XMonetae-DeFi/apollo/log"
 	"github.com/XMonetae-DeFi/apollo/output"
 	"github.com/XMonetae-DeFi/apollo/types"
+	"github.com/rs/zerolog"
 
 	"github.com/urfave/cli/v2"
 )
@@ -26,8 +27,11 @@ var cfg []byte
 //go:embed schema.example.hcl
 var schema []byte
 
+var logger zerolog.Logger
+
 func main() {
 	var opts types.ApolloOpts
+	logger = log.NewLogger("main")
 
 	app := &cli.App{
 		Name:  "apollo",
@@ -77,6 +81,11 @@ func main() {
 				Usage:       "Rate limit `LEVEL`, from 1 - 5",
 				Destination: &opts.RateLimit,
 			},
+			&cli.IntFlag{
+				Name:        "log-level",
+				Usage:       "log level from -1 to 5",
+				Destination: &opts.LogLevel,
+			},
 		},
 		Commands: []*cli.Command{
 			{
@@ -98,8 +107,9 @@ func main() {
 	}
 
 	err := app.Run(os.Args)
+
 	if err != nil {
-		log.Fatal(err)
+		logger.Fatal().Err(err).Msg("running app")
 	}
 }
 
@@ -134,6 +144,10 @@ func Init() error {
 }
 
 func Run(opts types.ApolloOpts) error {
+	lvl := zerolog.Level(int8(opts.LogLevel))
+	logger.Info().Int("log_level", int(lvl)).Msg("logger")
+	zerolog.SetGlobalLevel(lvl)
+
 	var pdb *db.DB
 
 	confDir, err := ConfigDir()
@@ -158,7 +172,7 @@ func Run(opts types.ApolloOpts) error {
 
 	// Validate the schema
 	if err := schema.Validate(opts); err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	cfg.DbSettings.DefaultTimeout = time.Second * 20
@@ -169,7 +183,7 @@ func Run(opts types.ApolloOpts) error {
 			return err
 		}
 
-		fmt.Println("connected to db")
+		logger.Debug().Str("db", pdb.Settings.Name).Msg("connected to db")
 	}
 
 	rpc, ok := cfg.Rpc[schema.Chain]

@@ -24,6 +24,7 @@ type ApolloOpts struct {
 	EndBlock   int64
 	RateLimit  int
 	Chain      string
+	LogLevel   int
 }
 
 type ResultType int

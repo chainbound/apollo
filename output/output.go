@@ -8,6 +8,8 @@ import (
 
 	"github.com/XMonetae-DeFi/apollo/db"
 	"github.com/XMonetae-DeFi/apollo/generate"
+	"github.com/XMonetae-DeFi/apollo/log"
+	"github.com/rs/zerolog"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -18,6 +20,7 @@ type OutputHandler struct {
 	csv    *CsvHandler
 	db     *db.DB
 	tables map[string]bool
+	logger zerolog.Logger
 }
 
 func NewOutputHandler() *OutputHandler {
@@ -28,29 +31,34 @@ func NewOutputHandler() *OutputHandler {
 	handler := &OutputHandler{
 		db:     defaultDB,
 		tables: make(map[string]bool),
+		logger: log.NewLogger("output"),
 	}
 
 	return handler
 }
 
 func (o *OutputHandler) WithDB(db *db.DB) *OutputHandler {
+	o.logger.Trace().Str("name", db.Settings.Name).Msg("running with db output")
 	o.db = db
 	return o
 }
 
 func (o *OutputHandler) WithStdOut() *OutputHandler {
+	o.logger.Trace().Msg("running with stdout output")
 	o.stdout = true
 	return o
 }
 
 func (o *OutputHandler) WithCsv(csv *CsvHandler) *OutputHandler {
+	o.logger.Trace().Msg("running with csv output")
 	o.csv = csv
 	return o
 }
 
 func (o OutputHandler) LogMap(m map[string]cty.Value) {
-	for k, v := range m {
-		fmt.Println(k, v.GoString())
+	fmt.Println()
+	for k, v := range convertCtyMap(m) {
+		o.logger.Info().Msg(fmt.Sprintf("%s: %s", k, v))
 	}
 }
 
