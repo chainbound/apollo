@@ -27,7 +27,7 @@ contract ABIs.
 ### Running
 * **Realtime mode**
 In realtime mode, we only have to define the interval if we're doing a method calling schema (in seconds) and the chain, 
-and an optional output option (either `--csv`, `--db` or `--stdout`)
+and an optional output option (either `--csv`, `--db` or `--stdout`). See the [Output](##Output) for more info on that.
 
 *Examples* 
 
@@ -81,9 +81,9 @@ The names of the methods, events, inputs and outputs should correspond exactly t
 ABI file.
 
 The last block in `contract` is the `save` block. In this block we can do some basic transformations
-before saving our output, and it provides access to variables and functions
-that we might need. 
+before saving our output, and it provides access to variables and functions that we might need. 
 
+### Save Context
 Any `input` or `output` is provided as a variable by default.
 Other variables available are:
 * `timestamp`
@@ -94,10 +94,11 @@ And for `events`:
 * `tx_hash`
 
 The available functions are:
-* `lower`
-* `upper`
+* `lower(str)`
+* `upper(str)`
 * `parse_decimals(raw, decimals)`
 
+Below are some annotated examples to help you get started. There are some more examples in the [docs](docs/schema-examples.md).
 ### Methods Example
 ```hcl
 // Define the chain to run on
