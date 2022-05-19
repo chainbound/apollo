@@ -22,7 +22,7 @@ import (
 //go:embed config.yml
 var cfg []byte
 
-//go:embed schema.hcl
+//go:embed schema.example.hcl
 var schema []byte
 
 func main() {
