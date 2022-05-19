@@ -1,4 +1,5 @@
 # Schema Examples
+Here you can find some example schemas to get you started.
 
 ## Events
 ### Calculate the price and size of every ETH-USDC swap on a V2 pool
@@ -12,7 +13,6 @@ contract usdc_to_eth_swaps "0x905dfCD5649217c42684f23958568e533C711Aa3" {
     outputs = ["amount1In", "amount0Out", "amount0In", "amount1Out"]
   }
 
-
   save {
     timestamp = timestamp
     block = blocknumber
@@ -25,7 +25,6 @@ contract usdc_to_eth_swaps "0x905dfCD5649217c42684f23958568e533C711Aa3" {
   }
 }
 ```
-
 ## Methods
 ### Calculate the mid price of a Uniswap V2 pool
 ```hcl
