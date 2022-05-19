@@ -5,7 +5,15 @@ import (
 
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
+	"github.com/zclconf/go-cty/cty/function/stdlib"
 )
+
+var Functions = map[string]function.Function{
+	"upper":          stdlib.UpperFunc,
+	"lower":          stdlib.LowerFunc,
+	"abs":            stdlib.AbsoluteFunc,
+	"parse_decimals": ParseDecimals,
+}
 
 var ParseDecimals = function.New(&function.Spec{
 	Params: []function.Parameter{

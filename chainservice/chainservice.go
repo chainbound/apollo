@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	acommon "github.com/XMonetae-DeFi/apollo/common"
 	"github.com/XMonetae-DeFi/apollo/dsl"
 	"github.com/XMonetae-DeFi/apollo/generate"
+	atypes "github.com/XMonetae-DeFi/apollo/types"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -60,8 +60,8 @@ type EvaluationResult struct {
 
 // RunMethodCaller starts a listener on the `blocks` channel, and on every incoming block it will execute all methods concurrently
 // on the given blockNumber.
-func (c *ChainService) RunMethodCaller(schema *dsl.DynamicSchema, realtime bool, blocks <-chan *big.Int, out chan<- acommon.CallResult, maxWorkers int) {
-	res := make(chan acommon.CallResult)
+func (c *ChainService) RunMethodCaller(schema *dsl.DynamicSchema, realtime bool, blocks <-chan *big.Int, out chan<- atypes.CallResult, maxWorkers int) {
+	res := make(chan atypes.CallResult)
 	var wg sync.WaitGroup
 
 	nworkers := 1
@@ -107,7 +107,7 @@ func (c *ChainService) RunMethodCaller(schema *dsl.DynamicSchema, realtime bool,
 }
 
 // CallMethods executes all the methods on the contract, and aggregates their results into a CallResult
-func (c ChainService) CallMethods(chain acommon.Chain, contract *dsl.Contract, blockNumber *big.Int, out chan<- acommon.CallResult) {
+func (c ChainService) CallMethods(chain atypes.Chain, contract *dsl.Contract, blockNumber *big.Int, out chan<- atypes.CallResult) {
 	inputs := make(map[string]any)
 	outputs := make(map[string]any)
 
@@ -122,7 +122,7 @@ func (c ChainService) CallMethods(chain acommon.Chain, contract *dsl.Contract, b
 	for _, method := range contract.Methods {
 		msg, err := generate.BuildCallMsg(contract.Address(), method, contract.Abi)
 		if err != nil {
-			out <- acommon.CallResult{
+			out <- atypes.CallResult{
 				Err: fmt.Errorf("building call message: %w", err),
 			}
 			return
@@ -130,7 +130,7 @@ func (c ChainService) CallMethods(chain acommon.Chain, contract *dsl.Contract, b
 
 		raw, err := c.client.CallContract(ctx, msg, blockNumber)
 		if err != nil {
-			out <- acommon.CallResult{
+			out <- atypes.CallResult{
 				Err: fmt.Errorf("calling contract method: %w", err),
 			}
 			return
@@ -139,7 +139,7 @@ func (c ChainService) CallMethods(chain acommon.Chain, contract *dsl.Contract, b
 		// We only want the correct value here (specified in the schema)
 		results, err := contract.Abi.Unpack(method.Name(), raw)
 		if err != nil {
-			out <- acommon.CallResult{
+			out <- atypes.CallResult{
 				Err: fmt.Errorf("unpacking abi for %s: %w", method.Name(), err),
 			}
 			return
@@ -159,7 +159,7 @@ func (c ChainService) CallMethods(chain acommon.Chain, contract *dsl.Contract, b
 	actualBlockNumber := uint64(0)
 	block, err := c.client.HeaderByNumber(ctx, blockNumber)
 	if err != nil {
-		out <- acommon.CallResult{
+		out <- atypes.CallResult{
 			Err: err,
 		}
 		return
@@ -171,8 +171,8 @@ func (c ChainService) CallMethods(chain acommon.Chain, contract *dsl.Contract, b
 		actualBlockNumber = blockNumber.Uint64()
 	}
 
-	out <- acommon.CallResult{
-		Type:            acommon.Method,
+	out <- atypes.CallResult{
+		Type:            atypes.Method,
 		BlockNumber:     actualBlockNumber,
 		Timestamp:       block.Time,
 		Chain:           chain,
@@ -183,8 +183,8 @@ func (c ChainService) CallMethods(chain acommon.Chain, contract *dsl.Contract, b
 	}
 }
 
-func (c ChainService) FilterEvents(schema *dsl.DynamicSchema, fromBlock, toBlock *big.Int, out chan<- acommon.CallResult, maxWorkers int) {
-	res := make(chan acommon.CallResult)
+func (c ChainService) FilterEvents(schema *dsl.DynamicSchema, fromBlock, toBlock *big.Int, out chan<- atypes.CallResult, maxWorkers int) {
+	res := make(chan atypes.CallResult)
 	var wg sync.WaitGroup
 
 	if toBlock.Cmp(big.NewInt(0)) == 0 {
@@ -198,7 +198,7 @@ func (c ChainService) FilterEvents(schema *dsl.DynamicSchema, fromBlock, toBlock
 				// Get first topic in Bytes (to filter events)
 				topic, err := generate.GetTopic(event.Name(), cs.Abi)
 				if err != nil {
-					res <- acommon.CallResult{
+					res <- atypes.CallResult{
 						Err: fmt.Errorf("generating topic id: %w", err),
 					}
 					return
@@ -238,7 +238,7 @@ func (c ChainService) FilterEvents(schema *dsl.DynamicSchema, fromBlock, toBlock
 					})
 
 					if err != nil {
-						res <- acommon.CallResult{
+						res <- atypes.CallResult{
 							Err: fmt.Errorf("getting logs from node: %w", err),
 						}
 						return
@@ -251,7 +251,7 @@ func (c ChainService) FilterEvents(schema *dsl.DynamicSchema, fromBlock, toBlock
 							defer wg.Done()
 							result, err := c.HandleLog(log, schema.Chain, cs, event, indexedEvents)
 							if err != nil {
-								res <- acommon.CallResult{
+								res <- atypes.CallResult{
 									Err: fmt.Errorf("handling log: %w", err),
 								}
 								return
@@ -285,8 +285,8 @@ func (c ChainService) FilterEvents(schema *dsl.DynamicSchema, fromBlock, toBlock
 	}()
 }
 
-func (c ChainService) ListenForEvents(schema *dsl.DynamicSchema, out chan<- acommon.CallResult, maxWorkers int) {
-	res := make(chan acommon.CallResult)
+func (c ChainService) ListenForEvents(schema *dsl.DynamicSchema, out chan<- atypes.CallResult, maxWorkers int) {
+	res := make(chan atypes.CallResult)
 	logChan := make(chan types.Log)
 	var wg sync.WaitGroup
 
@@ -297,7 +297,7 @@ func (c ChainService) ListenForEvents(schema *dsl.DynamicSchema, out chan<- acom
 				// Get first topic in Bytes (to filter events)
 				topic, err := generate.GetTopic(event.Name_, cs.Abi)
 				if err != nil {
-					res <- acommon.CallResult{
+					res <- atypes.CallResult{
 						Err: fmt.Errorf("generating topic id: %w", err),
 					}
 					return
@@ -328,7 +328,7 @@ func (c ChainService) ListenForEvents(schema *dsl.DynamicSchema, out chan<- acom
 					},
 				}, logChan)
 				if err != nil {
-					res <- acommon.CallResult{
+					res <- atypes.CallResult{
 						Err: fmt.Errorf("subscribing to logs: %w", err),
 					}
 					return
@@ -343,7 +343,7 @@ func (c ChainService) ListenForEvents(schema *dsl.DynamicSchema, out chan<- acom
 						defer wg.Done()
 						result, err := c.HandleLog(log, schema.Chain, cs, event, indexedEvents)
 						if err != nil {
-							res <- acommon.CallResult{
+							res <- atypes.CallResult{
 								Err: fmt.Errorf("handling log: %w", err),
 							}
 							return
@@ -374,7 +374,7 @@ func (c ChainService) ListenForEvents(schema *dsl.DynamicSchema, out chan<- acom
 	}()
 }
 
-func (c ChainService) HandleLog(log types.Log, chain acommon.Chain, cs *dsl.Contract, event *dsl.Event, indexedEvents map[string]int) (*acommon.CallResult, error) {
+func (c ChainService) HandleLog(log types.Log, chain atypes.Chain, cs *dsl.Contract, event *dsl.Event, indexedEvents map[string]int) (*atypes.CallResult, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), c.defaultTimeout)
 	defer cancel()
 
@@ -406,8 +406,8 @@ func (c ChainService) HandleLog(log types.Log, chain acommon.Chain, cs *dsl.Cont
 		}
 	}
 
-	return &acommon.CallResult{
-		Type:            acommon.Event,
+	return &atypes.CallResult{
+		Type:            atypes.Event,
 		Chain:           chain,
 		ContractName:    cs.Name,
 		ContractAddress: cs.Address(),

@@ -12,10 +12,11 @@ import (
 	_ "embed"
 
 	"github.com/XMonetae-DeFi/apollo/chainservice"
-	"github.com/XMonetae-DeFi/apollo/common"
 	"github.com/XMonetae-DeFi/apollo/db"
 	"github.com/XMonetae-DeFi/apollo/dsl"
 	"github.com/XMonetae-DeFi/apollo/output"
+	"github.com/XMonetae-DeFi/apollo/types"
+
 	"github.com/urfave/cli/v2"
 )
 
@@ -26,7 +27,7 @@ var cfg []byte
 var schema []byte
 
 func main() {
-	var opts common.ApolloOpts
+	var opts types.ApolloOpts
 
 	app := &cli.App{
 		Name:  "apollo",
@@ -132,7 +133,7 @@ func Init() error {
 	return nil
 }
 
-func Run(opts common.ApolloOpts) error {
+func Run(opts types.ApolloOpts) error {
 	var pdb *db.DB
 
 	confDir, err := ConfigDir()
@@ -203,7 +204,7 @@ func Run(opts common.ApolloOpts) error {
 	// First check if there are any methods to be called, it might just be events
 	maxWorkers := 32
 	blocks := make(chan *big.Int)
-	chainResults := make(chan common.CallResult)
+	chainResults := make(chan types.CallResult)
 
 	service.RunMethodCaller(schema, opts.Realtime, blocks, chainResults, maxWorkers)
 

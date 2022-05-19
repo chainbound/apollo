@@ -7,7 +7,7 @@ import (
 	"os"
 	"path"
 
-	acommon "github.com/XMonetae-DeFi/apollo/common"
+	"github.com/XMonetae-DeFi/apollo/types"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -16,8 +16,6 @@ import (
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
-	"github.com/zclconf/go-cty/cty/function"
-	"github.com/zclconf/go-cty/cty/function/stdlib"
 	"github.com/zclconf/go-cty/cty/gocty"
 )
 
@@ -27,13 +25,13 @@ var (
 )
 
 type DynamicSchema struct {
-	Chain     acommon.Chain `hcl:"chain"`
-	Contracts []*Contract   `hcl:"contract,block"`
+	Chain     types.Chain `hcl:"chain"`
+	Contracts []*Contract `hcl:"contract,block"`
 
 	EvalContext *hcl.EvalContext
 }
 
-func (s DynamicSchema) Validate(opts acommon.ApolloOpts) error {
+func (s DynamicSchema) Validate(opts types.ApolloOpts) error {
 	hasMethods := false
 	for _, c := range s.Contracts {
 		if len(c.Methods) > 0 {
@@ -113,12 +111,7 @@ type Save struct {
 // It has nothing but the most basic functions and variables.
 func InitialContext() hcl.EvalContext {
 	return hcl.EvalContext(hcl.EvalContext{
-		Functions: map[string]function.Function{
-			"upper":          stdlib.UpperFunc,
-			"lower":          stdlib.LowerFunc,
-			"abs":            stdlib.AbsoluteFunc,
-			"parse_decimals": ParseDecimals,
-		},
+		Functions: Functions,
 		Variables: map[string]cty.Value{},
 	})
 }
@@ -189,7 +182,7 @@ func (s *DynamicSchema) EvaluateSaveBlock(contractName string, vars map[string]c
 	return saves, nil
 }
 
-func GenerateVarMap(cr acommon.CallResult) map[string]cty.Value {
+func GenerateVarMap(cr types.CallResult) map[string]cty.Value {
 	m := make(map[string]cty.Value)
 
 	m["contract_address"], _ = gocty.ToCtyValue(cr.ContractAddress.String(), cty.String)
@@ -215,7 +208,7 @@ func GenerateVarMap(cr acommon.CallResult) map[string]cty.Value {
 		}
 	}
 
-	if cr.Type == acommon.Event {
+	if cr.Type == types.Event {
 		m["tx_hash"], _ = gocty.ToCtyValue(cr.TxHash.String(), cty.String)
 	}
 
