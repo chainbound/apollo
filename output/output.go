@@ -1,6 +1,7 @@
 package output
 
 import (
+	"context"
 	"encoding/csv"
 	"fmt"
 	"os"
@@ -16,20 +17,17 @@ type OutputHandler struct {
 	stdout bool
 	csv    *CsvHandler
 	db     *db.DB
+	tables map[string]bool
 }
 
-func NewOutputHandler(opts ...OutputOption) *OutputHandler {
+func NewOutputHandler() *OutputHandler {
 	var (
 		defaultDB *db.DB = nil
 	)
 
 	handler := &OutputHandler{
-		db: defaultDB,
-		// out: os.Stdout,
-	}
-
-	for _, opt := range opts {
-		opt(handler)
+		db:     defaultDB,
+		tables: make(map[string]bool),
 	}
 
 	return handler
@@ -79,6 +77,16 @@ func (o OutputHandler) HandleResult(name string, res map[string]cty.Value) error
 	strRes := convertCtyMap(res)
 
 	if o.db != nil {
+
+		if ok := o.tables[name]; !ok {
+			err := o.db.CreateTable(context.Background(), name, res)
+			if err != nil {
+				return err
+			}
+
+			o.tables[name] = true
+		}
+
 		if err := o.db.InsertResult(name, strRes); err != nil {
 			return err
 		}

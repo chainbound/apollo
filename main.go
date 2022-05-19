@@ -165,10 +165,11 @@ func Run(opts types.ApolloOpts) error {
 
 	if opts.Db {
 		pdb, err = db.NewDB(cfg.DbSettings).Connect()
-
 		if err != nil {
 			return err
 		}
+
+		fmt.Println("connected to db")
 	}
 
 	rpc, ok := cfg.Rpc[schema.Chain]
@@ -243,7 +244,10 @@ func Run(opts types.ApolloOpts) error {
 			return fmt.Errorf("evaluating save block: %w", err)
 		}
 
-		out.HandleResult(res.ContractName, save)
+		err = out.HandleResult(res.ContractName, save)
+		if err != nil {
+			return fmt.Errorf("handling result: %w", err)
+		}
 	}
 
 	return nil

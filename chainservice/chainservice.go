@@ -397,8 +397,6 @@ func (c ChainService) HandleLog(log types.Log, chain atypes.Chain, cs *dsl.Contr
 		outputs[k] = v
 	}
 
-	fmt.Println(outputs)
-
 	h, err := c.client.HeaderByNumber(ctx, big.NewInt(int64(log.BlockNumber)))
 	if err != nil {
 		if err != nil {

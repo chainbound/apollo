@@ -67,6 +67,7 @@ func (db DB) CreateTable(ctx context.Context, name string, cols map[string]cty.V
 	if err != nil {
 		return err
 	}
+
 	_, err = db.pdb.ExecContext(ctx, ddl)
 	if err != nil {
 		return err
@@ -79,7 +80,6 @@ func (db DB) InsertResult(name string, toInsert map[string]string) error {
 	defer cancel()
 
 	ddl := generate.GenerateInsertSQL(name, toInsert)
-	fmt.Println(ddl)
 
 	_, err := db.pdb.ExecContext(ctx, ddl)
 	if err != nil {

@@ -27,7 +27,7 @@ var (
 var (
 	ctySqlTypes = map[cty.Type]string{
 		cty.Number: "NUMERIC",
-		cty.String: "VARCHAR(55)",
+		cty.String: "VARCHAR(66)", // length of a hash
 	}
 )
 

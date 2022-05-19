@@ -20,14 +20,6 @@ func GenerateCreateDDL(tableName string, cols map[string]cty.Value) (string, err
 		return "", err
 	}
 
-	// for _, m := range schema.Methods() {
-	// 	columns = AddColumnTypesFromABI(m.Name(), schema.Abi, columns)
-	// }
-
-	// for _, e := range schema.Events() {
-	// 	columns = AddColumnTypesFromABI(e.Name(), schema.Abi, columns)
-	// }
-
 	ddl := fmt.Sprintf("DROP TABLE IF EXISTS %s;\n", tableName)
 
 	ddl += fmt.Sprintf("CREATE TABLE %s (\n\tid SERIAL PRIMARY KEY,\n", tableName)
@@ -99,29 +91,6 @@ func AddColumnTypesFromABI(name string, abi abi.ABI, columns []*Column) []*Colum
 }
 
 func GenerateColumns(cols map[string]cty.Value) ([]Column, error) {
-	// columns := []*Column{
-	// 	{
-	// 		Name:  "timestamp",
-	// 		Type:  ABIToSQLType(Uint256),
-	// 		Final: true,
-	// 	},
-	// 	{
-	// 		Name:  "blocknumber",
-	// 		Type:  ABIToSQLType(Uint256),
-	// 		Final: true,
-	// 	},
-	// 	{
-	// 		Name:  "chain",
-	// 		Type:  ABIToSQLType(String),
-	// 		Final: true,
-	// 	},
-	// 	{
-	// 		Name:  "contract",
-	// 		Type:  ABIToSQLType(Address),
-	// 		Final: true,
-	// 	},
-	// }
-
 	columns := make([]Column, len(cols))
 
 	i := 0
@@ -131,34 +100,8 @@ func GenerateColumns(cols map[string]cty.Value) ([]Column, error) {
 			Type:  CtyToSQLType(v.Type()),
 			Final: true,
 		}
+		i++
 	}
-
-	// The only dynamic table columns are the arguments and the return values
-	// for _, call := range cs.Methods() {
-	// 	for arg := range call.Inputs() {
-	// 		columns = append(columns, &Column{
-	// 			Name: arg,
-	// 			// Type will be read from ABI
-	// 		})
-	// 	}
-
-	// 	for _, output := range call.Outputs() {
-	// 		columns = append(columns, &Column{
-	// 			Name: output,
-	// 			// Type will be read from ABI
-	// 		})
-	// 	}
-
-	// }
-
-	// Generate outputs for events
-	// for _, events := range cs.Events() {
-	// 	for _, output := range events.Outputs() {
-	// 		columns = append(columns, &Column{
-	// 			Name: output,
-	// 		})
-	// 	}
-	// }
 
 	return columns, nil
 }
