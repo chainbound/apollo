@@ -71,9 +71,33 @@ GLOBAL OPTIONS:
 ```
 
 ## Schema
-The schema is in the form of a [HCL](https://github.com/hashicorp/hcl) file which defines the data we're interested in. 
-The top-level elements are `chain` and `contracts`.
-`contracts` will define the data we want. There are some annotated examples below.
+The schema is in the form of a DSL implemented with [HCL](https://github.com/hashicorp/hcl) to define the data
+we're interested in. This means that basic arithmetic operations and ternary operators
+for control flow are supported by default. The top-level elements are `chain` and `contract`.
+In the `contract` block we provide the ABI file, along with which `methods` or `events` we want to get the data for.
+
+In the case of a `method`, we first define `inputs` and `outputs`. For an `event`, it's only `outputs`.
+The names of the methods, events, inputs and outputs should correspond exactly to what's in the provided
+ABI file.
+
+The last block in `contract` is the `save` block. In this block we can do some basic transformations
+before saving our output, and it provides access to variables and functions
+that we might need. 
+
+Any `input` or `output` is provided as a variable by default.
+Other variables available are:
+* `timestamp`
+* `blocknumber`
+* `contract_address`
+
+And for `events`:
+* `tx_hash`
+
+The available functions are:
+* `lower`
+* `upper`
+* `parse_decimals(raw, decimals)`
+
 ### Methods Example
 ```hcl
 // Define the chain to run on
@@ -136,7 +160,7 @@ contract usdc_to_eth_swaps "0x905dfCD5649217c42684f23958568e533C711Aa3" {
 
     // Example: we want to calculate the price of the swap.
     price = amount0Out != 0 ? (parse_decimals(amount1In, 6) / parse_decimals(amount0Out, 18)) : (parse_decimals(amount1Out, 6) / parse_decimals(amount0In, 18))
-    dir = amount0Out != 0 ? "buy" : "sell"
+    dir = amount0Out != 0 ? upper("buy") : upper("sell")
     size = amount1In != 0 ? parse_decimals(amount1In, 6) : parse_decimals(amount1Out, 6)
   }
 }
