@@ -1,5 +1,6 @@
 # Apollo
 > Program for easily querying and collecting EVM chaindata based on a schema.
+![apollo-diagram drawio](https://user-images.githubusercontent.com/84743718/169578316-65abf2bd-9dab-49c9-9a2b-fb762b571977.png)
 
 ## Introduction
 `apollo` is a program for querying and collecting EVM chaindata based on a [schema](#schema). Chaindata in this case is
