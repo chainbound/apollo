@@ -22,8 +22,9 @@ import (
 )
 
 type ChainService struct {
-	client *ethclient.Client
-	logger zerolog.Logger
+	client     *ethclient.Client
+	blockDater BlockDater
+	logger     zerolog.Logger
 
 	defaultTimeout time.Duration
 	rateLimit      int
@@ -46,6 +47,7 @@ func (c *ChainService) Connect(ctx context.Context, rpcUrl string) (*ChainServic
 	c.logger.Debug().Str("rpc", rpcUrl).Msg("connected to rpc")
 
 	c.client = client
+	c.blockDater = NewBlockDater(client)
 	return c, nil
 }
 
@@ -443,4 +445,8 @@ func matchABIValue(outputName string, outputs abi.Arguments, results []any) any 
 	}
 
 	return nil
+}
+
+func (c ChainService) BlockByTimestamp(ctx context.Context, timestamp int64) (int64, error) {
+	return c.blockDater.BlockNumberByTimestamp(ctx, timestamp)
 }

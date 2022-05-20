@@ -22,6 +22,8 @@ type ApolloOpts struct {
 	Interval   int64
 	StartBlock int64
 	EndBlock   int64
+	StartTime  int64
+	EndTime    int64
 	RateLimit  int
 	Chain      string
 	LogLevel   int

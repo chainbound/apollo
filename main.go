@@ -66,15 +66,23 @@ func main() {
 			},
 			&cli.Int64Flag{
 				Name:        "start-block",
-				Aliases:     []string{"s"},
 				Usage:       "Starting block number for historical analysis",
 				Destination: &opts.StartBlock,
 			},
 			&cli.Int64Flag{
 				Name:        "end-block",
-				Aliases:     []string{"e"},
 				Usage:       "End block number for historical analysis",
 				Destination: &opts.EndBlock,
+			},
+			&cli.Int64Flag{
+				Name:        "start-time",
+				Usage:       "Start timestamp (UNIX) for historical analysis",
+				Destination: &opts.StartTime,
+			},
+			&cli.Int64Flag{
+				Name:        "end-time",
+				Usage:       "End timestamp (UNIX) for historical analysis",
+				Destination: &opts.EndTime,
 			},
 			&cli.IntFlag{
 				Name:        "rate-limit",
@@ -200,6 +208,24 @@ func Run(opts types.ApolloOpts) error {
 	service, err := chainservice.NewChainService(defaultTimeout, opts.RateLimit).Connect(ctx, rpc)
 	if err != nil {
 		return err
+	}
+
+	if opts.StartBlock == 0 && opts.StartTime != 0 {
+		startBlock, err := service.BlockByTimestamp(ctx, opts.StartTime)
+		if err != nil {
+			return err
+		}
+
+		opts.StartBlock = startBlock
+	}
+
+	if opts.EndBlock == 0 && opts.EndTime != 0 {
+		endBlock, err := service.BlockByTimestamp(ctx, opts.EndTime)
+		if err != nil {
+			return err
+		}
+
+		opts.EndBlock = endBlock
 	}
 
 	out := output.NewOutputHandler()

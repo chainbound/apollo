@@ -11,7 +11,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
-
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -46,7 +45,7 @@ func (s DynamicSchema) Validate(opts types.ApolloOpts) error {
 			}
 		}
 
-		if opts.StartBlock != 0 && opts.EndBlock != 0 {
+		if (opts.StartBlock != 0 && opts.EndBlock != 0) || (opts.StartTime != 0 && opts.EndTime != 0) {
 			if opts.Interval == 0 {
 				return ErrNoIntervalHistorical
 			}
