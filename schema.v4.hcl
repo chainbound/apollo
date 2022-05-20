@@ -31,7 +31,7 @@ contract usdt_eth_reserves "0x905dfCD5649217c42684f23958568e533C711Aa3" {
 
   transform {
     eth_reserve_usdt = parse_decimals(_reserve0, 18)
-    usdc_reserve = parse_decimals(_reserve1, 6)
+    usdt_reserve = parse_decimals(_reserve1, 6)
 
     mid_price_usdt = parse_decimals(_reserve1, 6) / parse_decimals(_reserve0, 18)
   }
@@ -65,6 +65,12 @@ event Transfer {
   method decimals {
     outputs = ["decimals"]
   }
+
+  // filter list
+  filter = [
+    value != 0,
+    from == "0x..."
+  ]
 
   save {
     sender = from

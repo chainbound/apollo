@@ -7,9 +7,8 @@
   - [ ] Review concurrency model + the fact that logs are always overfetched. 
   - [x] Working DB output
   - [ ] Ability to call methods when logs occur, and not just at a random interval. This would make it easier for some use cases. The DSL syntax will be defining a method block inside of an event block
-  - [ ] Save predicates
+  - [ ] Filter lists
       - Example: don't save certain log outputs if one of the values is 0.  
-      - Does this only make sense for logs?
   - [ ] Standalone logs (not emitted from a certain contract)
   - [ ] Should be able to get basic Ethereum balances too
   - [ ] transform blocks, which are contract level blocks to define and transform variables to be used later in the top-level save blocks 
@@ -26,6 +25,7 @@
   - [ ] JSON output
   - [ ] Generalized SQL output (MySQL, SQL Server)
   - [ ] Aggregation operations like group by, sum, avg
+  - [ ] Unverified methods and events
 
 - [ ] **v1.2.0-beta**
   - [ ] Transaction simulation at certain times / events
