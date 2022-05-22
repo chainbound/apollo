@@ -49,9 +49,13 @@ func (db *DB) Connect() (*DB, error) {
 		return nil, err
 	}
 
+	db.pdb = pdb
+	if !db.IsConnected() {
+		return nil, fmt.Errorf("can't connect to db at %s", db.connStr)
+	}
+
 	db.logger.Debug().Str("conn_str", db.connStr).Msg("connected to db")
 
-	db.pdb = pdb
 	return db, nil
 }
 
@@ -77,7 +81,7 @@ func (db DB) CreateTable(ctx context.Context, name string, cols map[string]cty.V
 	db.logger.Trace().Str("ddl", ddl).Msg("generated create stmt")
 	_, err = db.pdb.ExecContext(ctx, ddl)
 	if err != nil {
-		return err
+		return fmt.Errorf("creating table: %w", err)
 	}
 
 	db.logger.Debug().Str("table_name", name).Msg("created table")
@@ -94,7 +98,7 @@ func (db DB) InsertResult(name string, toInsert map[string]string) error {
 
 	_, err := db.pdb.ExecContext(ctx, ddl)
 	if err != nil {
-		return err
+		return fmt.Errorf("inserting result: %w", err)
 	}
 
 	db.logger.Debug().Str("table_name", name).Msg("inserted result")
