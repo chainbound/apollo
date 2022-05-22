@@ -77,7 +77,6 @@ func (c *ChainService) RunMethodCaller(schema *dsl.DynamicSchema, realtime bool,
 		// For every incoming blockNumber, loop over contract methods and start a goroutine for each method.
 		// This way, every eth_call will happen concurrently.
 		for blockNumber := range blocks {
-			c.rateLimiter.Take()
 			wg.Add(1)
 			go func(blockNumber *big.Int) {
 				defer wg.Done()
@@ -126,6 +125,7 @@ func (c ChainService) CallMethods(chain atypes.Chain, contract *dsl.Contract, bl
 	defer cancel()
 
 	for _, method := range contract.Methods {
+		c.rateLimiter.Take()
 		msg, err := generate.BuildCallMsg(contract.Address(), method, contract.Abi)
 		if err != nil {
 			out <- atypes.CallResult{
@@ -260,7 +260,6 @@ func (c ChainService) FilterEvents(schema *dsl.DynamicSchema, fromBlock, toBlock
 
 					for _, log := range logs {
 						wg.Add(1)
-						c.rateLimiter.Take()
 						go func(log types.Log) {
 							defer wg.Done()
 							result, err := c.HandleLog(log, schema.Chain, cs, event, indexedEvents)
@@ -345,7 +344,6 @@ func (c ChainService) ListenForEvents(schema *dsl.DynamicSchema, out chan<- atyp
 
 				for log := range logChan {
 					wg.Add(1)
-					c.rateLimiter.Take()
 					go func(log types.Log) {
 						defer wg.Done()
 						result, err := c.HandleLog(log, schema.Chain, cs, event, indexedEvents)
@@ -378,6 +376,8 @@ func (c ChainService) ListenForEvents(schema *dsl.DynamicSchema, out chan<- atyp
 }
 
 func (c ChainService) HandleLog(log types.Log, chain atypes.Chain, cs *dsl.Contract, event *dsl.Event, indexedEvents map[string]int) (*atypes.CallResult, error) {
+	// Check and wait for rate limiter if necessary
+	c.rateLimiter.Take()
 	ctx, cancel := context.WithTimeout(context.Background(), c.defaultTimeout)
 	defer cancel()
 

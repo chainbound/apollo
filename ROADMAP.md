@@ -5,10 +5,11 @@
   - [x] Logging with log levels
   - [x] Improved stdout output
   - [x] Timestamps for setting start, end and interval options
-  - [ ] Review concurrency model
+  - [x] Review concurrency model
         - The problem with the current concurrency model is that when the max number of workers is reached, it waits until
         **all** goroutines in that batch finish before starting another batch. This is not what we want, since some goroutines
         can take disproportionate amounts of time and thus block the program from collecting more data.
+        - Fixed with "go.uber.org/ratelimit" package. We can now define a max number of requests per second.
   - [x] Working DB output
   - [ ] Ability to call methods when logs occur, and not just at a random interval. This would make it easier for some use cases. The DSL syntax will be defining a method block inside of an event block
   - [ ] Filter lists
