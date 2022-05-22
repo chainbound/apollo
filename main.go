@@ -65,6 +65,12 @@ func main() {
 				Destination: &opts.Interval,
 			},
 			&cli.Int64Flag{
+				Name:        "time-interval",
+				Aliases:     []string{"I"},
+				Usage:       "Interval in seconds",
+				Destination: &opts.TimeInterval,
+			},
+			&cli.Int64Flag{
 				Name:        "start-block",
 				Usage:       "Starting block number for historical analysis",
 				Destination: &opts.StartBlock,
@@ -93,6 +99,7 @@ func main() {
 				Name:        "log-level",
 				Usage:       "log level from -1 to 5",
 				Destination: &opts.LogLevel,
+				Value:       1,
 			},
 		},
 		Commands: []*cli.Command{
@@ -211,21 +218,24 @@ func Run(opts types.ApolloOpts) error {
 	}
 
 	if opts.StartBlock == 0 && opts.StartTime != 0 {
-		startBlock, err := service.BlockByTimestamp(ctx, opts.StartTime)
+		opts.StartBlock, err = service.BlockByTimestamp(ctx, opts.StartTime)
 		if err != nil {
 			return err
 		}
-
-		opts.StartBlock = startBlock
 	}
 
 	if opts.EndBlock == 0 && opts.EndTime != 0 {
-		endBlock, err := service.BlockByTimestamp(ctx, opts.EndTime)
+		opts.EndBlock, err = service.BlockByTimestamp(ctx, opts.EndTime)
 		if err != nil {
 			return err
 		}
+	}
 
-		opts.EndBlock = endBlock
+	if opts.Interval == 0 && opts.TimeInterval != 0 {
+		opts.Interval, err = service.SecondsToBlockInterval(ctx, opts.TimeInterval)
+		if err != nil {
+			return err
+		}
 	}
 
 	out := output.NewOutputHandler()
@@ -275,7 +285,7 @@ func Run(opts types.ApolloOpts) error {
 
 	for res := range chainResults {
 		if res.Err != nil {
-			fmt.Println(res.Err)
+			logger.Warn().Msg(res.Err.Error())
 			continue
 		}
 

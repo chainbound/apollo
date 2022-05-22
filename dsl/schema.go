@@ -40,13 +40,13 @@ func (s DynamicSchema) Validate(opts types.ApolloOpts) error {
 
 	if hasMethods {
 		if opts.Realtime {
-			if opts.Interval == 0 {
+			if opts.Interval == 0 && opts.TimeInterval == 0 {
 				return ErrNoIntervalRealtime
 			}
 		}
 
 		if (opts.StartBlock != 0 && opts.EndBlock != 0) || (opts.StartTime != 0 && opts.EndTime != 0) {
-			if opts.Interval == 0 {
+			if opts.Interval == 0 && opts.TimeInterval == 0 {
 				return ErrNoIntervalHistorical
 			}
 		}

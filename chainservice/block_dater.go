@@ -66,27 +66,33 @@ func (b *BlockDater) BlockNumberByTimestamp(ctx context.Context, timestamp int64
 	return target.Int64(), nil
 }
 
+func (b BlockDater) SecondsToBlockInterval(ctx context.Context, seconds int64) (int64, error) {
+	if b.Latest == nil || b.First == nil || b.BlockTime == 0 {
+		err := b.SetBoundaries(ctx)
+		if err != nil {
+			return 0, fmt.Errorf("error setting boundaries: %w", err)
+		}
+	}
+
+	return int64(float64(seconds) / b.BlockTime), nil
+}
+
 var err error
 
 // TODO: this should be a binary search
 func (b *BlockDater) FindTargetBlock(ctx context.Context, currentBlock BlockWrapper, target, threshold int64) (*big.Int, error) {
 	// blockFound := false
 
-	fmt.Println("FINDING TARGET BLOCK")
 	var blockDiff int64
 
 	for {
-		fmt.Println("timestamp:", currentBlock.Timestamp)
-		fmt.Println("target timestamp: ", target)
 		blockDiff = int64(float64(target-currentBlock.Timestamp) / b.BlockTime)
-		fmt.Println("diff in blocks", blockDiff)
 		if target-threshold < currentBlock.Timestamp && currentBlock.Timestamp < target+threshold {
 			return currentBlock.Number, nil
 		}
 
 		// if currentBlock.Timestamp < target-threshold {
 		newBlockNum := currentBlock.Number.Int64() + blockDiff
-		fmt.Println("calculated new block:", newBlockNum)
 		currentBlock, err = b.GetBlock(ctx, big.NewInt(newBlockNum))
 		if err != nil {
 			return nil, err
@@ -115,23 +121,10 @@ func (b *BlockDater) SetBoundaries(ctx context.Context) error {
 }
 
 func (b *BlockDater) GetBlock(ctx context.Context, num *big.Int) (BlockWrapper, error) {
-	fmt.Println("getting block", num)
 	safeNum := num
 	if num == nil {
 		safeNum = big.NewInt(0)
 	}
-
-	// if b.Latest != nil {
-	// 	if safeNum.Cmp(b.Latest.Number) > 0 {
-	// 		return *b.Latest, nil
-	// 	}
-	// }
-
-	// if b.First != nil {
-	// 	if safeNum.Cmp(b.First.Number) < 0 {
-	// 		return *b.First, nil
-	// 	}
-	// }
 
 	if cached, ok := b.blockCache[safeNum.Int64()]; ok {
 		return cached, nil

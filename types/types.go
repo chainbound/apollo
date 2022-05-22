@@ -15,18 +15,19 @@ const (
 
 // Main program options, provided as cli arguments
 type ApolloOpts struct {
-	Realtime   bool
-	Db         bool
-	Csv        bool
-	Stdout     bool
-	Interval   int64
-	StartBlock int64
-	EndBlock   int64
-	StartTime  int64
-	EndTime    int64
-	RateLimit  int
-	Chain      string
-	LogLevel   int
+	Realtime     bool
+	Db           bool
+	Csv          bool
+	Stdout       bool
+	TimeInterval int64
+	Interval     int64
+	StartBlock   int64
+	EndBlock     int64
+	StartTime    int64
+	EndTime      int64
+	RateLimit    int
+	Chain        string
+	LogLevel     int
 }
 
 type ResultType int

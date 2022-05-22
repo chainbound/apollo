@@ -236,6 +236,11 @@ func (c ChainService) FilterEvents(schema *dsl.DynamicSchema, fromBlock, toBlock
 				// but at a block range of 2000, we're going to need a lot of requests. For now we can try to run
 				// it with this hardcoded value, but we might need to read it from a config / implement a retry pattern.
 				blockRange := int64(4096)
+				blockDiff := toBlock.Int64() - fromBlock.Int64()
+				if blockDiff < blockRange {
+					blockRange = blockDiff
+				}
+
 				for i := fromBlock.Int64(); i < toBlock.Int64(); i += blockRange {
 					ctx, cancel := context.WithTimeout(context.Background(), c.defaultTimeout)
 					defer cancel()
@@ -448,5 +453,23 @@ func matchABIValue(outputName string, outputs abi.Arguments, results []any) any 
 }
 
 func (c ChainService) BlockByTimestamp(ctx context.Context, timestamp int64) (int64, error) {
-	return c.blockDater.BlockNumberByTimestamp(ctx, timestamp)
+	c.logger.Info().Int64("timestamp", timestamp).Msg("finding block number")
+	n, err := c.blockDater.BlockNumberByTimestamp(ctx, timestamp)
+	if err != nil {
+		return 0, err
+	}
+
+	c.logger.Info().Int64("timestamp", timestamp).Int64("block_number", n).Msg("blocknumber found")
+	return n, nil
+}
+
+func (c ChainService) SecondsToBlockInterval(ctx context.Context, seconds int64) (int64, error) {
+	c.logger.Info().Int64("seconds", seconds).Msg("converting seconds to block interval")
+	n, err := c.blockDater.SecondsToBlockInterval(ctx, seconds)
+	if err != nil {
+		return 0, err
+	}
+
+	c.logger.Info().Int64("seconds", seconds).Int64("blocks", n).Msg("set block interval")
+	return n, nil
 }
