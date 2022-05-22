@@ -62,8 +62,9 @@ func BuildFlags(opts *types.ApolloOpts) []cli.Flag {
 		},
 		&cli.IntFlag{
 			Name:        "rate-limit",
-			Usage:       "Rate limit `LEVEL`, from 1 - 5",
+			Usage:       "Rate limit `RPS` in max requests per second",
 			Destination: &opts.RateLimit,
+			Value:       100,
 		},
 		&cli.IntFlag{
 			Name:        "log-level",

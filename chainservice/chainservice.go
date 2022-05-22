@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/rs/zerolog"
 	"github.com/zclconf/go-cty/cty"
+	"go.uber.org/ratelimit"
 )
 
 type ChainService struct {
@@ -27,13 +28,13 @@ type ChainService struct {
 	logger     zerolog.Logger
 
 	defaultTimeout time.Duration
-	rateLimit      int
+	rateLimiter    ratelimit.Limiter
 }
 
-func NewChainService(defaultTimeout time.Duration, rateLimit int) *ChainService {
+func NewChainService(defaultTimeout time.Duration, requestsPerSecond int) *ChainService {
 	return &ChainService{
 		defaultTimeout: defaultTimeout,
-		rateLimit:      rateLimit,
+		rateLimiter:    ratelimit.New(requestsPerSecond),
 		logger:         log.NewLogger("chainservice"),
 	}
 }
@@ -72,24 +73,19 @@ func (c *ChainService) RunMethodCaller(schema *dsl.DynamicSchema, realtime bool,
 	res := make(chan atypes.CallResult)
 	var wg sync.WaitGroup
 
-	nworkers := 1
 	go func() {
 		// For every incoming blockNumber, loop over contract methods and start a goroutine for each method.
 		// This way, every eth_call will happen concurrently.
 		for blockNumber := range blocks {
+			c.rateLimiter.Take()
 			wg.Add(1)
 			go func(blockNumber *big.Int) {
 				defer wg.Done()
-				nworkers++
 
 				for _, contract := range schema.Contracts {
 					c.CallMethods(schema.Chain, contract, blockNumber, res)
 				}
 			}(blockNumber)
-
-			if nworkers%maxWorkers == 0 {
-				wg.Wait()
-			}
 		}
 
 		wg.Wait()
@@ -165,7 +161,6 @@ func (c ChainService) CallMethods(chain atypes.Chain, contract *dsl.Contract, bl
 		for k, v := range method.Inputs() {
 			inputs[k] = v
 		}
-		time.Sleep(time.Duration(c.rateLimit*10) * time.Millisecond)
 	}
 
 	actualBlockNumber := uint64(0)
@@ -203,7 +198,6 @@ func (c ChainService) FilterEvents(schema *dsl.DynamicSchema, fromBlock, toBlock
 		toBlock = nil
 	}
 
-	nworkers := 1
 	go func() {
 		for _, cs := range schema.Contracts {
 			for _, event := range cs.Events {
@@ -266,7 +260,7 @@ func (c ChainService) FilterEvents(schema *dsl.DynamicSchema, fromBlock, toBlock
 
 					for _, log := range logs {
 						wg.Add(1)
-						nworkers++
+						c.rateLimiter.Take()
 						go func(log types.Log) {
 							defer wg.Done()
 							result, err := c.HandleLog(log, schema.Chain, cs, event, indexedEvents)
@@ -278,12 +272,7 @@ func (c ChainService) FilterEvents(schema *dsl.DynamicSchema, fromBlock, toBlock
 							}
 
 							res <- *result
-							time.Sleep(time.Duration(c.rateLimit*10) * time.Millisecond)
 						}(log)
-
-						if nworkers%maxWorkers == 0 {
-							wg.Wait()
-						}
 					}
 				}
 			}
@@ -299,9 +288,6 @@ func (c ChainService) FilterEvents(schema *dsl.DynamicSchema, fromBlock, toBlock
 		for r := range res {
 			out <- r
 		}
-
-		// TODO: Do something about this
-		// close(out)
 	}()
 }
 
@@ -310,7 +296,6 @@ func (c ChainService) ListenForEvents(schema *dsl.DynamicSchema, out chan<- atyp
 	logChan := make(chan types.Log)
 	var wg sync.WaitGroup
 
-	nworkers := 1
 	go func() {
 		for _, cs := range schema.Contracts {
 			for _, event := range cs.Events {
@@ -360,7 +345,7 @@ func (c ChainService) ListenForEvents(schema *dsl.DynamicSchema, out chan<- atyp
 
 				for log := range logChan {
 					wg.Add(1)
-					nworkers++
+					c.rateLimiter.Take()
 					go func(log types.Log) {
 						defer wg.Done()
 						result, err := c.HandleLog(log, schema.Chain, cs, event, indexedEvents)
@@ -373,10 +358,6 @@ func (c ChainService) ListenForEvents(schema *dsl.DynamicSchema, out chan<- atyp
 
 						res <- *result
 					}(log)
-
-					if nworkers%maxWorkers == 0 {
-						wg.Wait()
-					}
 				}
 			}
 		}
