@@ -29,10 +29,13 @@ func (c *ChainService) RunMethodCaller(schema *dsl.DynamicSchema, realtime bool,
 			go func(blockNumber *big.Int) {
 				defer wg.Done()
 				for _, contract := range schema.Contracts {
+					var wg2 sync.WaitGroup
 					var results []*apolloTypes.CallResult
 					for _, method := range contract.Methods {
+						wg2.Add(1)
 						go func(contract *dsl.Contract, method *dsl.Method) {
-							c.logger.Debug().Str("contract", contract.Name).Msg("calling contract methods")
+							defer wg2.Done()
+							// c.logger.Debug().Str("contract", contract.Name).Msg("calling contract methods")
 							result, err := c.CallMethod(schema.Chain, contract.Name, contract.Address(), contract.Abi, method, blockNumber)
 							if err != nil {
 								res <- apolloTypes.CallResult{
@@ -44,6 +47,8 @@ func (c *ChainService) RunMethodCaller(schema *dsl.DynamicSchema, realtime bool,
 							results = append(results, result)
 						}(contract, method)
 					}
+
+					wg2.Wait()
 
 					if len(results) > 0 {
 						res <- *aggregateCallResults(results...)

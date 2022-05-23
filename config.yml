@@ -4,7 +4,8 @@
 rpc:
   ethereum: wss://eth-mainnet.alchemyapi.io/v2/oQ1OJcJcZZzt0PpMdDAX53A3BJFELpGi
   avax: wss://ws-nd-244-501-601.p2pify.com/b9b145ce07d19551c170b9bb7bbff7ce/ext/bc/C/ws
-  arbitrum: ws://eth.netbound.io:8548
+  # arbitrum: ws://eth.netbound.io:8548
+  arbitrum: wss://arb-mainnet.g.alchemy.com/v2/4pRMjCWK8ZXbg0rqCBYT9surz2k26oH5
   optimism:
   polygon:
   fantom:

@@ -1,5 +1,19 @@
 chain = "arbitrum"
 
+start_block = 10
+end_block = 20
+
+// Format your dates
+start_time = format_date("01-05-2022 12:00:00", "dd-MM-yyyy hh:mm:ss")
+end_time = format_date("30-05-2022 22:00:00", "dd-MM-yyyy hh:mm:ss")
+
+// Variable block
+variables = {
+  eth = "0xeth"
+  usdc = "0xusdc"
+}
+
+
 // GENERAL IDEAS =========================================================
 // Gets the native asset balance
 balance "0xe1Dd30fecAb8a63105F2C035B084BfC6Ca5B1493" {}
@@ -96,9 +110,6 @@ contract usdc_to_eth_swaps "0x905dfCD5649217c42684f23958568e533C711Aa3" {
   }
 
 
-  // Only save when this condition is met (e.g. save_predicate evaluates to "true"
-  // with all the variables filled in)
-  save_predicate = amount0Out != 0
 
   // The "save" block defines which data we want to save, and how it should look.
   // Basic arithmetic works here, as well as some more advanced functions like parse_decimals.
