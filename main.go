@@ -139,7 +139,7 @@ func Run(opts types.ApolloOpts) error {
 		return fmt.Errorf("no rpc defined for chain %s", opts.Chain)
 	}
 
-	defaultTimeout := time.Second * 30
+	defaultTimeout := time.Second * 60
 
 	// Long timeout
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)

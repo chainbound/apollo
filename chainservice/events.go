@@ -421,7 +421,6 @@ func (c ChainService) HandleLog(log types.Log, chain apolloTypes.Chain, contract
 		}
 	}
 
-	fmt.Println(outputs)
 	// fmt.Println(abi)
 	tmp := make(map[string]any)
 	if len(outputs) < len(event.Outputs_) {
@@ -430,8 +429,6 @@ func (c ChainService) HandleLog(log types.Log, chain apolloTypes.Chain, contract
 			return nil, fmt.Errorf("unpacking log.Data: %w", err)
 		}
 	}
-
-	fmt.Println(tmp)
 
 	for k, v := range tmp {
 		outputs[k] = v
