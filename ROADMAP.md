@@ -11,7 +11,8 @@
         can take disproportionate amounts of time and thus block the program from collecting more data.
         - Fixed with "go.uber.org/ratelimit" package. We can now define a max number of requests per second.
   - [x] Working DB output
-  - [ ] Ability to call methods when logs occur, and not just at a random interval. This would make it easier for some use cases. The DSL syntax will be defining a method block inside of an event block
+  - [ ] Ability to call methods when logs occur, and not just at a random interval. This would make it easier for some use cases. The DSL syntax will be defining a method block inside of an event block. NOTE: method calls are at the block level (happen at the 
+  **end** of a block, while events are on the transaction level)
   - [ ] Filter lists
       - Example: when one of these evaluates to `false`, don't proceed to `transform` or `save`. This should also be a top-level
       block.
@@ -44,3 +45,6 @@
 ## Later
 - [ ] **v1.2.0-beta**
   - [ ] Transaction simulation at certain times / events
+  - [ ] Look into Apache Spark and SQL for collecting data
+  - [ ] Python library
+  - [ ] JavaScript / TypeScript library

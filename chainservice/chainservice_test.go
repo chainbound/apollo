@@ -47,7 +47,7 @@ func TestExecCallContracts(t *testing.T) {
 	blocks := make(chan *big.Int)
 
 	res := make(chan types.CallResult)
-	service.RunMethodCaller(schema, true, blocks, res, 10)
+	service.RunMethodCaller(schema, true, blocks, res)
 
 	// Latest block, then close
 	blocks <- nil
@@ -91,9 +91,8 @@ func TestListenForEvents(t *testing.T) {
 
 	service := newChainService()
 	res := make(chan types.CallResult)
-	maxWorkers := 32
 
-	service.ListenForEvents(schema, res, maxWorkers)
+	service.ListenForEvents(schema, res)
 
 	for r := range res {
 		if r.Err != nil {

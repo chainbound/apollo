@@ -186,11 +186,10 @@ func Run(opts types.ApolloOpts) error {
 	}
 
 	// First check if there are any methods to be called, it might just be events
-	maxWorkers := 32
 	blocks := make(chan *big.Int)
 	chainResults := make(chan types.CallResult)
 
-	service.RunMethodCaller(schema, opts.Realtime, blocks, chainResults, maxWorkers)
+	service.RunMethodCaller(schema, opts.Realtime, blocks, chainResults)
 
 	// Start main program loop
 	if opts.Realtime {
@@ -211,9 +210,9 @@ func Run(opts types.ApolloOpts) error {
 	}
 
 	if opts.Realtime {
-		service.ListenForEvents(schema, chainResults, maxWorkers)
+		service.ListenForEvents(schema, chainResults)
 	} else {
-		service.FilterEvents(schema, big.NewInt(opts.StartBlock), big.NewInt(opts.EndBlock), chainResults, maxWorkers)
+		service.FilterEvents(schema, big.NewInt(opts.StartBlock), big.NewInt(opts.EndBlock), chainResults)
 	}
 
 	for res := range chainResults {

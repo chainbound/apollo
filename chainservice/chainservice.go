@@ -69,7 +69,7 @@ type EvaluationResult struct {
 
 // RunMethodCaller starts a listener on the `blocks` channel, and on every incoming block it will execute all methods concurrently
 // on the given blockNumber.
-func (c *ChainService) RunMethodCaller(schema *dsl.DynamicSchema, realtime bool, blocks <-chan *big.Int, out chan<- atypes.CallResult, maxWorkers int) {
+func (c *ChainService) RunMethodCaller(schema *dsl.DynamicSchema, realtime bool, blocks <-chan *big.Int, out chan<- atypes.CallResult) {
 	res := make(chan atypes.CallResult)
 	var wg sync.WaitGroup
 
@@ -190,7 +190,7 @@ func (c ChainService) CallMethods(chain atypes.Chain, contract *dsl.Contract, bl
 	}
 }
 
-func (c ChainService) FilterEvents(schema *dsl.DynamicSchema, fromBlock, toBlock *big.Int, out chan<- atypes.CallResult, maxWorkers int) {
+func (c ChainService) FilterEvents(schema *dsl.DynamicSchema, fromBlock, toBlock *big.Int, out chan<- atypes.CallResult) {
 	res := make(chan atypes.CallResult)
 	var wg sync.WaitGroup
 
@@ -201,7 +201,10 @@ func (c ChainService) FilterEvents(schema *dsl.DynamicSchema, fromBlock, toBlock
 	go func() {
 		for _, cs := range schema.Contracts {
 			for _, event := range cs.Events {
-				c.logger.Debug().Str("contract", cs.Name).Str("event", event.Name()).Msg("filtering contract events")
+				c.logger.Debug().Str("contract", cs.Name).
+					Str("event", event.Name()).Str("from_block", fromBlock.String()).
+					Str("to_block", toBlock.String()).Msg("filtering contract events")
+
 				// Get first topic in Bytes (to filter events)
 				topic, err := generate.GetTopic(event.Name(), cs.Abi)
 				if err != nil {
@@ -290,7 +293,7 @@ func (c ChainService) FilterEvents(schema *dsl.DynamicSchema, fromBlock, toBlock
 	}()
 }
 
-func (c ChainService) ListenForEvents(schema *dsl.DynamicSchema, out chan<- atypes.CallResult, maxWorkers int) {
+func (c ChainService) ListenForEvents(schema *dsl.DynamicSchema, out chan<- atypes.CallResult) {
 	res := make(chan atypes.CallResult)
 	logChan := make(chan types.Log)
 	var wg sync.WaitGroup
