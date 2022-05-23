@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/XMonetae-DeFi/apollo/dsl"
+	"github.com/chainbound/apollo/dsl"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 )

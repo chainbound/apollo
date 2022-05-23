@@ -34,6 +34,7 @@ type ResultType int
 
 const (
 	Event ResultType = iota
+	GlobalEvent
 	Method
 )
 

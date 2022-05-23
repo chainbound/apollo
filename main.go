@@ -10,12 +10,12 @@ import (
 
 	_ "embed"
 
-	"github.com/XMonetae-DeFi/apollo/chainservice"
-	"github.com/XMonetae-DeFi/apollo/db"
-	"github.com/XMonetae-DeFi/apollo/dsl"
-	"github.com/XMonetae-DeFi/apollo/log"
-	"github.com/XMonetae-DeFi/apollo/output"
-	"github.com/XMonetae-DeFi/apollo/types"
+	"github.com/chainbound/apollo/chainservice"
+	"github.com/chainbound/apollo/db"
+	"github.com/chainbound/apollo/dsl"
+	"github.com/chainbound/apollo/log"
+	"github.com/chainbound/apollo/output"
+	"github.com/chainbound/apollo/types"
 	"github.com/rs/zerolog"
 
 	"github.com/urfave/cli/v2"
@@ -221,7 +221,7 @@ func Run(opts types.ApolloOpts) error {
 			continue
 		}
 
-		save, err := schema.EvaluateSaveBlock(res.ContractName, dsl.GenerateVarMap(res))
+		save, err := schema.EvaluateSaveBlock(res.Type, res.ContractName, dsl.GenerateVarMap(res))
 		if err != nil {
 			return fmt.Errorf("evaluating save block: %w", err)
 		}

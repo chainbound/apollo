@@ -7,7 +7,7 @@ import (
 	"os"
 	"path"
 
-	"github.com/XMonetae-DeFi/apollo/types"
+	"github.com/chainbound/apollo/types"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -25,8 +25,11 @@ var (
 )
 
 type DynamicSchema struct {
-	Chain     types.Chain `hcl:"chain"`
+	Chain types.Chain `hcl:"chain"`
+	// Contract schema's
 	Contracts []*Contract `hcl:"contract,block"`
+	// Global events
+	Events []*Event `hcl:"event,block"`
 
 	EvalContext *hcl.EvalContext
 }
@@ -34,14 +37,10 @@ type DynamicSchema struct {
 func (s DynamicSchema) Validate(opts types.ApolloOpts) error {
 	hasMethods := false
 	hasEvents := false
+	// hasGlobalEvents := len(s.Events) > 0
 	for _, c := range s.Contracts {
-		if len(c.Methods) > 0 {
-			hasMethods = true
-		}
-
-		if len(c.Events) > 0 {
-			hasEvents = true
-		}
+		hasMethods = len(c.Methods) > 0
+		hasEvents = len(c.Events) > 0
 	}
 
 	if hasMethods {
@@ -107,8 +106,13 @@ func (m Method) Inputs() map[string]string {
 
 type Event struct {
 	Name_    string    `hcl:"name,label"`
+	AbiPath  string    `hcl:"abi,optional"`
 	Outputs_ []string  `hcl:"outputs"`
 	Methods  []*Method `hcl:"method,block"`
+
+	Saves *Save `hcl:"save,block"`
+
+	Abi abi.ABI
 }
 
 func (e Event) Name() string {
@@ -117,6 +121,10 @@ func (e Event) Name() string {
 
 func (e Event) Outputs() []string {
 	return e.Outputs_
+}
+
+func (e Event) OutputName() string {
+	return e.Name_ + "_events"
 }
 
 type Save struct {
@@ -161,6 +169,20 @@ func NewSchema(confDir string) (*DynamicSchema, error) {
 		return nil, diags.Errs()[0]
 	}
 
+	for _, event := range s.Events {
+		f, err := os.Open(path.Join(confDir, event.AbiPath))
+		if err != nil {
+			return nil, fmt.Errorf("ParseV2: reading ABI file: %w", err)
+		}
+
+		abi, err := abi.JSON(f)
+		if err != nil {
+			return nil, fmt.Errorf("ParseV2: parsing ABI")
+		}
+
+		event.Abi = abi
+	}
+
 	for _, contract := range s.Contracts {
 		f, err := os.Open(path.Join(confDir, contract.AbiPath))
 		if err != nil {
@@ -180,20 +202,36 @@ func NewSchema(confDir string) (*DynamicSchema, error) {
 
 // EvaluateSaveBlock updates the evaluation context and
 // evaluates the save block. The results will be returned as a map.
-func (s *DynamicSchema) EvaluateSaveBlock(contractName string, vars map[string]cty.Value) (map[string]cty.Value, error) {
+func (s *DynamicSchema) EvaluateSaveBlock(tp types.ResultType, contractName string, vars map[string]cty.Value) (map[string]cty.Value, error) {
 	s.EvalContext.Variables = vars
 	saves := make(map[string]cty.Value)
 
-	for _, c := range s.Contracts {
-		if c.Name == contractName {
-			mv := make(map[string]cty.Value)
-			diags := gohcl.DecodeBody(c.Saves.Options, s.EvalContext, &mv)
-			if diags.HasErrors() {
-				return nil, diags.Errs()[0]
-			}
+	if tp == types.GlobalEvent {
+		for _, event := range s.Events {
+			if event.OutputName() == contractName {
+				mv := make(map[string]cty.Value)
+				diags := gohcl.DecodeBody(event.Saves.Options, s.EvalContext, &mv)
+				if diags.HasErrors() {
+					return nil, diags.Errs()[0]
+				}
 
-			for k, v := range mv {
-				saves[k] = v
+				for k, v := range mv {
+					saves[k] = v
+				}
+			}
+		}
+	} else {
+		for _, c := range s.Contracts {
+			if c.Name == contractName {
+				mv := make(map[string]cty.Value)
+				diags := gohcl.DecodeBody(c.Saves.Options, s.EvalContext, &mv)
+				if diags.HasErrors() {
+					return nil, diags.Errs()[0]
+				}
+
+				for k, v := range mv {
+					saves[k] = v
+				}
 			}
 		}
 	}
@@ -227,7 +265,7 @@ func GenerateVarMap(cr types.CallResult) map[string]cty.Value {
 		}
 	}
 
-	if cr.Type == types.Event {
+	if cr.Type != types.Method {
 		m["tx_hash"], _ = gocty.ToCtyValue(cr.TxHash.String(), cty.String)
 	}
 

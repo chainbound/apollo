@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/XMonetae-DeFi/apollo/generate"
-	"github.com/XMonetae-DeFi/apollo/log"
+	"github.com/chainbound/apollo/generate"
+	"github.com/chainbound/apollo/log"
 	_ "github.com/lib/pq"
 	"github.com/rs/zerolog"
 	"github.com/zclconf/go-cty/cty"

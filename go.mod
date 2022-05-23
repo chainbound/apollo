@@ -1,4 +1,4 @@
-module github.com/XMonetae-DeFi/apollo
+module github.com/chainbound/apollo
 
 go 1.18
 

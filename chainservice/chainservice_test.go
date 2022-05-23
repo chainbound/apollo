@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/XMonetae-DeFi/apollo/dsl"
-	"github.com/XMonetae-DeFi/apollo/types"
+	"github.com/chainbound/apollo/dsl"
+	"github.com/chainbound/apollo/types"
 )
 
 const (

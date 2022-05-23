@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/XMonetae-DeFi/apollo/types"
+	"github.com/chainbound/apollo/types"
 	"github.com/urfave/cli/v2"
 )
 

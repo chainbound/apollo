@@ -3,7 +3,7 @@ package generate
 import (
 	"testing"
 
-	"github.com/XMonetae-DeFi/apollo/dsl"
+	"github.com/chainbound/apollo/dsl"
 )
 
 func TestGenerateCsvHeaders(t *testing.T) {

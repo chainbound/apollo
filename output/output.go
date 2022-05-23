@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/XMonetae-DeFi/apollo/db"
-	"github.com/XMonetae-DeFi/apollo/generate"
-	"github.com/XMonetae-DeFi/apollo/log"
+	"github.com/chainbound/apollo/db"
+	"github.com/chainbound/apollo/generate"
+	"github.com/chainbound/apollo/log"
 	"github.com/rs/zerolog"
 	"github.com/zclconf/go-cty/cty"
 )

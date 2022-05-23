@@ -4,8 +4,8 @@ import (
 	"os"
 	"path"
 
-	"github.com/XMonetae-DeFi/apollo/db"
-	"github.com/XMonetae-DeFi/apollo/types"
+	"github.com/chainbound/apollo/db"
+	"github.com/chainbound/apollo/types"
 
 	"gopkg.in/yaml.v2"
 )
