@@ -91,9 +91,10 @@ func (c Contract) Address() common.Address {
 }
 
 type Method struct {
-	Name_   string            `hcl:"name,label"`
-	Inputs_ map[string]string `hcl:"inputs,optional"`
-	Outputs []string          `hcl:"outputs"`
+	BlockOffset int64             `hcl:"block_offset,optional"`
+	Name_       string            `hcl:"name,label"`
+	Inputs_     map[string]string `hcl:"inputs,optional"`
+	Outputs     []string          `hcl:"outputs"`
 }
 
 func (m Method) Name() string {
@@ -105,8 +106,9 @@ func (m Method) Inputs() map[string]string {
 }
 
 type Event struct {
-	Name_    string   `hcl:"name,label"`
-	Outputs_ []string `hcl:"outputs"`
+	Name_    string    `hcl:"name,label"`
+	Outputs_ []string  `hcl:"outputs"`
+	Methods  []*Method `hcl:"method,block"`
 }
 
 func (e Event) Name() string {

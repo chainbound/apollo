@@ -1,15 +1,20 @@
 package dsl
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
 )
 
 func TestNewSchema(t *testing.T) {
-	s, err := NewSchema("..")
+	s, err := NewSchema("../test")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	fmt.Println(s)
+	sjson, err := json.MarshalIndent(s, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Printf("%s\n", string(sjson))
 }

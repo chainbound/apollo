@@ -80,9 +80,26 @@ func (c *ChainService) RunMethodCaller(schema *dsl.DynamicSchema, realtime bool,
 			wg.Add(1)
 			go func(blockNumber *big.Int) {
 				defer wg.Done()
-
 				for _, contract := range schema.Contracts {
-					c.CallMethods(schema.Chain, contract, blockNumber, res)
+					var results []*atypes.CallResult
+					for _, method := range contract.Methods {
+						go func(contract *dsl.Contract, method *dsl.Method) {
+							c.logger.Debug().Str("contract", contract.Name).Msg("calling contract methods")
+							result, err := c.CallMethod(schema.Chain, contract, method, blockNumber)
+							if err != nil {
+								res <- atypes.CallResult{
+									Err: err,
+								}
+								return
+							}
+
+							results = append(results, result)
+						}(contract, method)
+					}
+
+					if len(results) > 0 {
+						res <- *aggregateCallResults(results...)
+					}
 				}
 			}(blockNumber)
 		}
@@ -109,67 +126,47 @@ func (c *ChainService) RunMethodCaller(schema *dsl.DynamicSchema, realtime bool,
 	}()
 }
 
-// CallMethods executes all the methods on the contract, and aggregates their results into a CallResult
-func (c ChainService) CallMethods(chain atypes.Chain, contract *dsl.Contract, blockNumber *big.Int, out chan<- atypes.CallResult) {
+// CallMethod executes all the methods on the contract, and aggregates their results into a CallResult
+func (c ChainService) CallMethod(chain atypes.Chain, contract *dsl.Contract, method *dsl.Method, blockNumber *big.Int) (*atypes.CallResult, error) {
 	inputs := make(map[string]any)
 	outputs := make(map[string]any)
 
 	// If there are no methods on the contract, return
-	if len(contract.Methods) == 0 {
-		return
-	}
-
-	c.logger.Debug().Str("contract", contract.Name).Msg("calling contract methods")
-
 	ctx, cancel := context.WithTimeout(context.Background(), c.defaultTimeout)
 	defer cancel()
 
-	for _, method := range contract.Methods {
-		c.rateLimiter.Take()
-		msg, err := generate.BuildCallMsg(contract.Address(), method, contract.Abi)
-		if err != nil {
-			out <- atypes.CallResult{
-				Err: fmt.Errorf("building call message: %w", err),
-			}
-			return
-		}
-		c.logger.Trace().Str("to", msg.To.String()).Str("input", common.Bytes2Hex(msg.Data)).Msg("built call message")
+	c.rateLimiter.Take()
+	msg, err := generate.BuildCallMsg(contract.Address(), method, contract.Abi)
+	if err != nil {
+		return nil, fmt.Errorf("building call message: %w", err)
+	}
+	c.logger.Trace().Str("to", msg.To.String()).Str("input", common.Bytes2Hex(msg.Data)).Msg("built call message")
 
-		raw, err := c.client.CallContract(ctx, msg, blockNumber)
-		if err != nil {
-			out <- atypes.CallResult{
-				Err: fmt.Errorf("calling contract method: %w", err),
-			}
-			return
-		}
-		c.logger.Trace().Str("to", msg.To.String()).Str("method", method.Name()).Msg("called method")
+	raw, err := c.client.CallContract(ctx, msg, blockNumber)
+	if err != nil {
+		return nil, fmt.Errorf("calling contract method: %w", err)
+	}
+	c.logger.Trace().Str("to", msg.To.String()).Str("method", method.Name()).Str("block_number", blockNumber.String()).Msg("called method")
 
-		// We only want the correct value here (specified in the schema)
-		results, err := contract.Abi.Unpack(method.Name(), raw)
-		if err != nil {
-			out <- atypes.CallResult{
-				Err: fmt.Errorf("unpacking abi for %s: %w", method.Name(), err),
-			}
-			return
-		}
+	// We only want the correct value here (specified in the schema)
+	results, err := contract.Abi.Unpack(method.Name(), raw)
+	if err != nil {
+		return nil, fmt.Errorf("unpacking abi for %s: %w", method.Name(), err)
+	}
 
-		for _, o := range method.Outputs {
-			result := matchABIValue(o, contract.Abi.Methods[method.Name()].Outputs, results)
-			outputs[o] = result
-		}
+	for _, o := range method.Outputs {
+		result := matchABIValue(o, contract.Abi.Methods[method.Name()].Outputs, results)
+		outputs[o] = result
+	}
 
-		for k, v := range method.Inputs() {
-			inputs[k] = v
-		}
+	for k, v := range method.Inputs() {
+		inputs[k] = v
 	}
 
 	actualBlockNumber := uint64(0)
 	block, err := c.client.HeaderByNumber(ctx, blockNumber)
 	if err != nil {
-		out <- atypes.CallResult{
-			Err: err,
-		}
-		return
+		return nil, fmt.Errorf("getting block number %w", err)
 	}
 
 	if blockNumber == nil {
@@ -178,7 +175,7 @@ func (c ChainService) CallMethods(chain atypes.Chain, contract *dsl.Contract, bl
 		actualBlockNumber = blockNumber.Uint64()
 	}
 
-	out <- atypes.CallResult{
+	return &atypes.CallResult{
 		Type:            atypes.Method,
 		BlockNumber:     actualBlockNumber,
 		Timestamp:       block.Time,
@@ -187,7 +184,7 @@ func (c ChainService) CallMethods(chain atypes.Chain, contract *dsl.Contract, bl
 		ContractAddress: contract.Address(),
 		Inputs:          inputs,
 		Outputs:         outputs,
-	}
+	}, nil
 }
 
 func (c ChainService) FilterEvents(schema *dsl.DynamicSchema, fromBlock, toBlock *big.Int, out chan<- atypes.CallResult) {
@@ -273,7 +270,21 @@ func (c ChainService) FilterEvents(schema *dsl.DynamicSchema, fromBlock, toBlock
 								return
 							}
 
-							res <- *result
+							results := []*atypes.CallResult{result}
+							for _, method := range event.Methods {
+								c.logger.Trace().Int64("block_offset", method.BlockOffset).Msg("calling method at event")
+								callResult, err := c.CallMethod(schema.Chain, cs, method, big.NewInt(int64(log.BlockNumber)+method.BlockOffset))
+								if err != nil {
+									res <- atypes.CallResult{
+										Err: fmt.Errorf("calling method on event: %w", err),
+									}
+									return
+								}
+
+								results = append(results, callResult)
+							}
+
+							res <- *aggregateCallResults(results...)
 						}(log)
 					}
 				}
@@ -291,6 +302,22 @@ func (c ChainService) FilterEvents(schema *dsl.DynamicSchema, fromBlock, toBlock
 			out <- r
 		}
 	}()
+}
+
+func aggregateCallResults(results ...*atypes.CallResult) *atypes.CallResult {
+	new := results[0]
+
+	for i := 1; i < len(results); i++ {
+		for k, v := range results[i].Inputs {
+			new.Inputs[k] = v
+		}
+
+		for k, v := range results[i].Outputs {
+			new.Outputs[k] = v
+		}
+	}
+
+	return new
 }
 
 func (c ChainService) ListenForEvents(schema *dsl.DynamicSchema, out chan<- atypes.CallResult) {
@@ -357,7 +384,21 @@ func (c ChainService) ListenForEvents(schema *dsl.DynamicSchema, out chan<- atyp
 							return
 						}
 
-						res <- *result
+						results := []*atypes.CallResult{result}
+						for _, method := range event.Methods {
+							c.logger.Trace().Int64("block_offset", method.BlockOffset).Msg("calling method at event")
+							callResult, err := c.CallMethod(schema.Chain, cs, method, big.NewInt(int64(log.BlockNumber)+method.BlockOffset))
+							if err != nil {
+								res <- atypes.CallResult{
+									Err: fmt.Errorf("calling method on event: %w", err),
+								}
+								return
+							}
+
+							results = append(results, callResult)
+						}
+
+						res <- *aggregateCallResults(results...)
 					}(log)
 				}
 			}
