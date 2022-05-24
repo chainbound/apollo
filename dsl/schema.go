@@ -25,8 +25,6 @@ var (
 )
 
 type DynamicSchema struct {
-	// TODO: remove
-	Chain     types.Chain          `hcl:"chain"`
 	Variables map[string]cty.Value `hcl:"variables,optional"`
 	// Contract schema's
 	Queries []*Query `hcl:"query,block"`

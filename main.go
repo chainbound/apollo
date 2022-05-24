@@ -133,7 +133,8 @@ func Run(opts types.ApolloOpts) error {
 		}
 	}
 
-	rpc, ok := cfg.Rpc[schema.Chain]
+	// TODO: ONLY 1 query at the same time for now
+	rpc, ok := cfg.Rpc[schema.Queries[0].Chain]
 	if !ok {
 		return fmt.Errorf("no rpc defined for chain %s", opts.Chain)
 	}
