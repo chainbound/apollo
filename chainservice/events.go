@@ -27,7 +27,7 @@ func (c ChainService) FilterEvents(query *dsl.Query, fromBlock, toBlock *big.Int
 	go func() {
 		for _, cs := range query.Contracts {
 			for _, event := range cs.Events {
-				c.logger.Debug().Str("contract", cs.Name).
+				c.logger.Debug().Str("contract", cs.Address().String()).
 					Str("event", event.Name()).Str("from_block", fromBlock.String()).
 					Str("to_block", toBlock.String()).Msg("filtering contract events")
 
@@ -102,7 +102,7 @@ func (c ChainService) FilterEvents(query *dsl.Query, fromBlock, toBlock *big.Int
 							results := []*apolloTypes.CallResult{result}
 							for _, method := range event.Methods {
 								c.logger.Trace().Int64("block_offset", method.BlockOffset).Msg("calling method at event")
-								callResult, err := c.CallMethod(query.Chain, cs.Name, cs.Address(), cs.Abi, method, big.NewInt(int64(log.BlockNumber)+method.BlockOffset))
+								callResult, err := c.CallMethod(query.Chain, event.OutputName(), cs.Address(), cs.Abi, method, big.NewInt(int64(log.BlockNumber)+method.BlockOffset))
 								if err != nil {
 									res <- apolloTypes.CallResult{
 										Err: fmt.Errorf("calling method on event: %w", err),
@@ -282,7 +282,7 @@ func (c ChainService) ListenForEvents(query *dsl.Query, out chan<- apolloTypes.C
 					return
 				}
 
-				c.logger.Debug().Str("contract", cs.Name).Str("event", event.Name()).Msg("subscribed to events")
+				c.logger.Debug().Str("contract", cs.Address().Hex()).Str("event", event.Name()).Msg("subscribed to events")
 
 				defer sub.Unsubscribe()
 
@@ -299,7 +299,7 @@ func (c ChainService) ListenForEvents(query *dsl.Query, out chan<- apolloTypes.C
 						results := []*apolloTypes.CallResult{result}
 						for _, method := range event.Methods {
 							c.logger.Trace().Int64("block_offset", method.BlockOffset).Msg("calling method at event")
-							callResult, err := c.CallMethod(query.Chain, cs.Name, cs.Address(), cs.Abi, method, big.NewInt(int64(log.BlockNumber)+method.BlockOffset))
+							callResult, err := c.CallMethod(query.Chain, event.OutputName(), cs.Address(), cs.Abi, method, big.NewInt(int64(log.BlockNumber)+method.BlockOffset))
 							if err != nil {
 								res <- apolloTypes.CallResult{
 									Err: fmt.Errorf("calling method on event: %w", err),

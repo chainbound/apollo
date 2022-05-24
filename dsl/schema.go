@@ -62,9 +62,7 @@ func (s *DynamicSchema) EvalVariables() {
 // Use `identifier`: in the case of contracts it's the address, in the case of global events it's the
 // `OutputName()`
 func (q *Query) EvalTransforms(tp types.ResultType, identifier string) error {
-	fmt.Println("evaluating transforms")
 	if tp == types.GlobalEvent {
-		fmt.Println("global event")
 		for _, event := range q.Events {
 			if event.OutputName() == identifier {
 				mv := make(map[string]cty.Value)
@@ -73,16 +71,12 @@ func (q *Query) EvalTransforms(tp types.ResultType, identifier string) error {
 					return diags.Errs()[0]
 				}
 
-				fmt.Printf("tranform decoded: %+v", mv)
-
 				for k, v := range mv {
 					q.EvalContext.Variables[k] = v
 				}
 			}
 		}
 	} else {
-		fmt.Println("contract")
-		fmt.Println(identifier)
 		for _, c := range q.Contracts {
 			if c.Address().String() == identifier {
 				mv := make(map[string]cty.Value)
@@ -90,8 +84,6 @@ func (q *Query) EvalTransforms(tp types.ResultType, identifier string) error {
 				if diags.HasErrors() {
 					return diags.Errs()[0]
 				}
-
-				fmt.Printf("tranform decoded: %+v", mv)
 
 				for k, v := range mv {
 					q.EvalContext.Variables[k] = v
@@ -207,7 +199,7 @@ func (q Query) HasContractMethods() (hasContractMethods bool) {
 
 type Contract struct {
 	// TODO: remove
-	Name     string `hcl:"name,label"`
+	// Name     string `hcl:"name,label"`
 	Address_ string `hcl:"address,label"`
 	AbiPath  string `hcl:"abi"`
 
