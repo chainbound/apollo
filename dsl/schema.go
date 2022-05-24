@@ -45,7 +45,7 @@ func (s DynamicSchema) Validate(opts types.ApolloOpts) error {
 	return nil
 }
 
-// TOP LEVEL EVALCONTEXT
+// EvalVariables loads the variables into the top-level evaluation context.
 func (s *DynamicSchema) EvalVariables() {
 	for k, v := range s.Variables {
 		s.EvalContext.Variables[k] = v
@@ -56,11 +56,9 @@ func (s *DynamicSchema) EvalVariables() {
 	}
 }
 
-// CONTRACT LEVEL EVALCONTEXT: should modify inputs & outputs, save them in parent context (query context)
-// PROBLEM: this should only work on a contract level, it should not have access to variables of the
-// other contract
-// Use `identifier`: in the case of contracts it's the address, in the case of global events it's the
-// `OutputName()`
+// EvalTransforms evaluates the transformation block per contract / top-level method.
+// The identifier is the OutputName of the method or the name of the contract in other
+// cases.
 func (q *Query) EvalTransforms(tp types.ResultType, identifier string) error {
 	if tp == types.GlobalEvent {
 		for _, event := range q.Events {
@@ -95,8 +93,7 @@ func (q *Query) EvalTransforms(tp types.ResultType, identifier string) error {
 	return nil
 }
 
-// QUERY LEVEL EVALCONTEXT
-// EvalSave updates the evaluation context and
+// EvalSave updates the evaluation context, evaluates the transform blocks and then
 // evaluates the save block. The results will be returned as a map.
 func (s *DynamicSchema) EvalSave(tp types.ResultType, queryName string, identifier string, vars map[string]cty.Value) (map[string]cty.Value, error) {
 	// Update evaluation context

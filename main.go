@@ -187,7 +187,7 @@ func Run(opts types.ApolloOpts) error {
 	// First check if there are any methods to be called, it might just be events
 	chainResults := make(chan types.CallResult)
 
-	service.Start(schema, opts, chainResults)
+	go service.Start(schema, opts, chainResults)
 
 	for res := range chainResults {
 		if res.Err != nil {

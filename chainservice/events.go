@@ -102,7 +102,7 @@ func (c ChainService) FilterEvents(query *dsl.Query, fromBlock, toBlock *big.Int
 							results := []*apolloTypes.CallResult{result}
 							for _, method := range event.Methods {
 								c.logger.Trace().Int64("block_offset", method.BlockOffset).Msg("calling method at event")
-								callResult, err := c.CallMethod(query.Chain, event.OutputName(), cs.Address(), cs.Abi, method, big.NewInt(int64(log.BlockNumber)+method.BlockOffset))
+								callResult, err := c.CallMethod(query.Chain, cs.Address(), cs.Abi, method, big.NewInt(int64(log.BlockNumber)+method.BlockOffset))
 								if err != nil {
 									res <- apolloTypes.CallResult{
 										Err: fmt.Errorf("calling method on event: %w", err),
@@ -201,6 +201,12 @@ func (c ChainService) FilterGlobalEvents(query *dsl.Query, fromBlock, toBlock *b
 				wg.Add(1)
 				go func(log types.Log) {
 					defer wg.Done()
+
+					// If len(log.Data) == 0, we have the wrong log
+					if len(log.Data) == 0 {
+						return
+					}
+
 					result, err := c.HandleLog(log, query.Chain, event.OutputName(), event.Abi, event, indexedEvents)
 					if err != nil {
 						res <- apolloTypes.CallResult{
@@ -212,7 +218,7 @@ func (c ChainService) FilterGlobalEvents(query *dsl.Query, fromBlock, toBlock *b
 					results := []*apolloTypes.CallResult{result}
 					for _, method := range event.Methods {
 						c.logger.Trace().Int64("block_offset", method.BlockOffset).Msg("calling method at event")
-						callResult, err := c.CallMethod(query.Chain, event.OutputName(), log.Address, event.Abi, method, big.NewInt(int64(log.BlockNumber)+method.BlockOffset))
+						callResult, err := c.CallMethod(query.Chain, log.Address, event.Abi, method, big.NewInt(int64(log.BlockNumber)+method.BlockOffset))
 						if err != nil {
 							res <- apolloTypes.CallResult{
 								Err: fmt.Errorf("calling method on event: %w", err),
@@ -226,6 +232,7 @@ func (c ChainService) FilterGlobalEvents(query *dsl.Query, fromBlock, toBlock *b
 					callResult := aggregateCallResults(results...)
 					callResult.Type = apolloTypes.GlobalEvent
 					callResult.QueryName = query.Name
+
 					res <- *callResult
 				}(log)
 			}
@@ -299,7 +306,7 @@ func (c ChainService) ListenForEvents(query *dsl.Query, out chan<- apolloTypes.C
 						results := []*apolloTypes.CallResult{result}
 						for _, method := range event.Methods {
 							c.logger.Trace().Int64("block_offset", method.BlockOffset).Msg("calling method at event")
-							callResult, err := c.CallMethod(query.Chain, event.OutputName(), cs.Address(), cs.Abi, method, big.NewInt(int64(log.BlockNumber)+method.BlockOffset))
+							callResult, err := c.CallMethod(query.Chain, cs.Address(), cs.Abi, method, big.NewInt(int64(log.BlockNumber)+method.BlockOffset))
 							if err != nil {
 								res <- apolloTypes.CallResult{
 									Err: fmt.Errorf("calling method on event: %w", err),
@@ -393,7 +400,7 @@ func (c ChainService) ListenForGlobalEvents(query *dsl.Query, res chan<- apolloT
 				results := []*apolloTypes.CallResult{result}
 				for _, method := range event.Methods {
 					c.logger.Trace().Int64("block_offset", method.BlockOffset).Msg("calling method at event")
-					callResult, err := c.CallMethod(query.Chain, event.OutputName(), log.Address, event.Abi, method, big.NewInt(int64(log.BlockNumber)+method.BlockOffset))
+					callResult, err := c.CallMethod(query.Chain, log.Address, event.Abi, method, big.NewInt(int64(log.BlockNumber)+method.BlockOffset))
 					if err != nil {
 						res <- apolloTypes.CallResult{
 							Err: fmt.Errorf("calling method on event: %w", err),

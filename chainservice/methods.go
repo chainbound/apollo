@@ -36,7 +36,7 @@ func (c *ChainService) RunMethodCaller(query *dsl.Query, realtime bool, blocks <
 						go func(contract *dsl.Contract, method *dsl.Method) {
 							defer wg2.Done()
 							// c.logger.Debug().Str("contract", contract.Name).Msg("calling contract methods")
-							result, err := c.CallMethod(query.Chain, query.Name, contract.Address(), contract.Abi, method, blockNumber)
+							result, err := c.CallMethod(query.Chain, contract.Address(), contract.Abi, method, blockNumber)
 							if err != nil {
 								res <- apolloTypes.CallResult{
 									Err: err,
@@ -83,7 +83,7 @@ func (c *ChainService) RunMethodCaller(query *dsl.Query, realtime bool, blocks <
 }
 
 // CallMethod executes all the methods on the contract, and aggregates their results into a CallResult
-func (c ChainService) CallMethod(chain apolloTypes.Chain, name string, address common.Address, abi abi.ABI, method *dsl.Method, blockNumber *big.Int) (*apolloTypes.CallResult, error) {
+func (c ChainService) CallMethod(chain apolloTypes.Chain, address common.Address, abi abi.ABI, method *dsl.Method, blockNumber *big.Int) (*apolloTypes.CallResult, error) {
 	inputs := make(map[string]any)
 	outputs := make(map[string]any)
 
@@ -136,7 +136,7 @@ func (c ChainService) CallMethod(chain apolloTypes.Chain, name string, address c
 		BlockNumber:     actualBlockNumber,
 		Timestamp:       block.Time,
 		Chain:           chain,
-		Identifier:      name,
+		Identifier:      address.String(),
 		ContractAddress: address,
 		Inputs:          inputs,
 		Outputs:         outputs,
