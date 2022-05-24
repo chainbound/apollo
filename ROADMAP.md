@@ -29,7 +29,12 @@
   - [ ] `save` block should be a top-level block so that we can do cross-contract operations
       - This only works for results that happen at the same time, i.e. method calls
   - [ ] Variables
-  - [ ] **Refactor + error handling and reliability**
+  - [ ] Request batching
+  - [ ] Multi-chain global events
+  - [ ] Multi-chain native balances 
+  - [ ] ETH + ARBI node deployment 
+  - [ ] Major update of Docs
+  - [ ] Refactor + error handling and reliability
 
 - [ ] **v1.1.0-beta**
   - [ ] Transaction monitoring
