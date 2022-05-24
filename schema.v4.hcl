@@ -8,7 +8,7 @@ start_time = format_date("01-05-2022 12:00:00", "dd-MM-yyyy hh:mm:ss")
 end_time = format_date("30-05-2022 22:00:00", "dd-MM-yyyy hh:mm:ss")
 
 // Variable block
-variables = {
+variables {
   eth = "0xeth"
   usdc = "0xusdc"
 }

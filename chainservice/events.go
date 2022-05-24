@@ -16,7 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
-func (c ChainService) FilterEvents(schema *dsl.DynamicSchema, fromBlock, toBlock *big.Int, out chan<- apolloTypes.CallResult) {
+func (c ChainService) FilterEvents(query *dsl.Query, fromBlock, toBlock *big.Int, out chan<- apolloTypes.CallResult) {
 	res := make(chan apolloTypes.CallResult)
 	var wg sync.WaitGroup
 
@@ -25,8 +25,7 @@ func (c ChainService) FilterEvents(schema *dsl.DynamicSchema, fromBlock, toBlock
 	}
 
 	go func() {
-		c.FilterGlobalEvents(schema, fromBlock, toBlock, res)
-		for _, cs := range schema.Contracts {
+		for _, cs := range query.Contracts {
 			for _, event := range cs.Events {
 				c.logger.Debug().Str("contract", cs.Name).
 					Str("event", event.Name()).Str("from_block", fromBlock.String()).
@@ -92,7 +91,7 @@ func (c ChainService) FilterEvents(schema *dsl.DynamicSchema, fromBlock, toBlock
 						wg.Add(1)
 						go func(log types.Log) {
 							defer wg.Done()
-							result, err := c.HandleLog(log, schema.Chain, cs.Name, cs.Abi, event, indexedEvents)
+							result, err := c.HandleLog(log, query.Chain, cs.Address().String(), cs.Abi, event, indexedEvents)
 							if err != nil {
 								res <- apolloTypes.CallResult{
 									Err: fmt.Errorf("handling log: %w", err),
@@ -103,7 +102,7 @@ func (c ChainService) FilterEvents(schema *dsl.DynamicSchema, fromBlock, toBlock
 							results := []*apolloTypes.CallResult{result}
 							for _, method := range event.Methods {
 								c.logger.Trace().Int64("block_offset", method.BlockOffset).Msg("calling method at event")
-								callResult, err := c.CallMethod(schema.Chain, cs.Name, cs.Address(), cs.Abi, method, big.NewInt(int64(log.BlockNumber)+method.BlockOffset))
+								callResult, err := c.CallMethod(query.Chain, cs.Name, cs.Address(), cs.Abi, method, big.NewInt(int64(log.BlockNumber)+method.BlockOffset))
 								if err != nil {
 									res <- apolloTypes.CallResult{
 										Err: fmt.Errorf("calling method on event: %w", err),
@@ -129,15 +128,16 @@ func (c ChainService) FilterEvents(schema *dsl.DynamicSchema, fromBlock, toBlock
 	// If we called more than one method, we want to aggregate the results
 	go func() {
 		for r := range res {
+			r.QueryName = query.Name
 			out <- r
 		}
 	}()
 }
 
-func (c ChainService) FilterGlobalEvents(schema *dsl.DynamicSchema, fromBlock, toBlock *big.Int, res chan<- apolloTypes.CallResult) {
+func (c ChainService) FilterGlobalEvents(query *dsl.Query, fromBlock, toBlock *big.Int, res chan<- apolloTypes.CallResult) {
 	var wg sync.WaitGroup
 
-	for _, event := range schema.Events {
+	for _, event := range query.Events {
 		c.logger.Debug().
 			Str("event", event.Name()).Str("from_block", fromBlock.String()).
 			Str("to_block", toBlock.String()).Msg("filtering global events")
@@ -201,7 +201,7 @@ func (c ChainService) FilterGlobalEvents(schema *dsl.DynamicSchema, fromBlock, t
 				wg.Add(1)
 				go func(log types.Log) {
 					defer wg.Done()
-					result, err := c.HandleLog(log, schema.Chain, event.OutputName(), event.Abi, event, indexedEvents)
+					result, err := c.HandleLog(log, query.Chain, event.OutputName(), event.Abi, event, indexedEvents)
 					if err != nil {
 						res <- apolloTypes.CallResult{
 							Err: fmt.Errorf("handling log: %w", err),
@@ -212,7 +212,7 @@ func (c ChainService) FilterGlobalEvents(schema *dsl.DynamicSchema, fromBlock, t
 					results := []*apolloTypes.CallResult{result}
 					for _, method := range event.Methods {
 						c.logger.Trace().Int64("block_offset", method.BlockOffset).Msg("calling method at event")
-						callResult, err := c.CallMethod(schema.Chain, event.OutputName(), log.Address, event.Abi, method, big.NewInt(int64(log.BlockNumber)+method.BlockOffset))
+						callResult, err := c.CallMethod(query.Chain, event.OutputName(), log.Address, event.Abi, method, big.NewInt(int64(log.BlockNumber)+method.BlockOffset))
 						if err != nil {
 							res <- apolloTypes.CallResult{
 								Err: fmt.Errorf("calling method on event: %w", err),
@@ -223,9 +223,10 @@ func (c ChainService) FilterGlobalEvents(schema *dsl.DynamicSchema, fromBlock, t
 						results = append(results, callResult)
 					}
 
-					finalResult := aggregateCallResults(results...)
-					finalResult.Type = apolloTypes.GlobalEvent
-					res <- *finalResult
+					callResult := aggregateCallResults(results...)
+					callResult.Type = apolloTypes.GlobalEvent
+					callResult.QueryName = query.Name
+					res <- *callResult
 				}(log)
 			}
 		}
@@ -234,12 +235,12 @@ func (c ChainService) FilterGlobalEvents(schema *dsl.DynamicSchema, fromBlock, t
 	wg.Wait()
 }
 
-func (c ChainService) ListenForEvents(schema *dsl.DynamicSchema, out chan<- apolloTypes.CallResult) {
+func (c ChainService) ListenForEvents(query *dsl.Query, out chan<- apolloTypes.CallResult) {
 	res := make(chan apolloTypes.CallResult)
 	logChan := make(chan types.Log)
 
 	go func() {
-		for _, cs := range schema.Contracts {
+		for _, cs := range query.Contracts {
 			for _, event := range cs.Events {
 				// Get first topic in Bytes (to filter events)
 				topic, err := generate.GetTopic(event.Name_, cs.Abi)
@@ -287,7 +288,7 @@ func (c ChainService) ListenForEvents(schema *dsl.DynamicSchema, out chan<- apol
 
 				for log := range logChan {
 					go func(log types.Log) {
-						result, err := c.HandleLog(log, schema.Chain, cs.Name, cs.Abi, event, indexedEvents)
+						result, err := c.HandleLog(log, query.Chain, query.Name, cs.Abi, event, indexedEvents)
 						if err != nil {
 							res <- apolloTypes.CallResult{
 								Err: fmt.Errorf("handling log: %w", err),
@@ -298,7 +299,7 @@ func (c ChainService) ListenForEvents(schema *dsl.DynamicSchema, out chan<- apol
 						results := []*apolloTypes.CallResult{result}
 						for _, method := range event.Methods {
 							c.logger.Trace().Int64("block_offset", method.BlockOffset).Msg("calling method at event")
-							callResult, err := c.CallMethod(schema.Chain, cs.Name, cs.Address(), cs.Abi, method, big.NewInt(int64(log.BlockNumber)+method.BlockOffset))
+							callResult, err := c.CallMethod(query.Chain, cs.Name, cs.Address(), cs.Abi, method, big.NewInt(int64(log.BlockNumber)+method.BlockOffset))
 							if err != nil {
 								res <- apolloTypes.CallResult{
 									Err: fmt.Errorf("calling method on event: %w", err),
@@ -323,6 +324,8 @@ func (c ChainService) ListenForEvents(schema *dsl.DynamicSchema, out chan<- apol
 		for r := range res {
 			r.Timestamp = uint64(time.Now().UnixMilli() / 1000)
 
+			r.QueryName = query.Name
+
 			out <- r
 		}
 
@@ -330,10 +333,10 @@ func (c ChainService) ListenForEvents(schema *dsl.DynamicSchema, out chan<- apol
 	}()
 }
 
-func (c ChainService) ListenForGlobalEvents(schema *dsl.DynamicSchema, res chan<- apolloTypes.CallResult) {
+func (c ChainService) ListenForGlobalEvents(query *dsl.Query, res chan<- apolloTypes.CallResult) {
 	logChan := make(chan types.Log)
 
-	for _, event := range schema.Events {
+	for _, event := range query.Events {
 		// Get first topic in Bytes (to filter events)
 		topic, err := generate.GetTopic(event.Name_, event.Abi)
 		if err != nil {
@@ -379,7 +382,7 @@ func (c ChainService) ListenForGlobalEvents(schema *dsl.DynamicSchema, res chan<
 
 		for log := range logChan {
 			go func(log types.Log) {
-				result, err := c.HandleLog(log, schema.Chain, event.OutputName(), event.Abi, event, indexedEvents)
+				result, err := c.HandleLog(log, query.Chain, event.OutputName(), event.Abi, event, indexedEvents)
 				if err != nil {
 					res <- apolloTypes.CallResult{
 						Err: fmt.Errorf("handling log: %w", err),
@@ -390,7 +393,7 @@ func (c ChainService) ListenForGlobalEvents(schema *dsl.DynamicSchema, res chan<
 				results := []*apolloTypes.CallResult{result}
 				for _, method := range event.Methods {
 					c.logger.Trace().Int64("block_offset", method.BlockOffset).Msg("calling method at event")
-					callResult, err := c.CallMethod(schema.Chain, event.OutputName(), log.Address, event.Abi, method, big.NewInt(int64(log.BlockNumber)+method.BlockOffset))
+					callResult, err := c.CallMethod(query.Chain, event.OutputName(), log.Address, event.Abi, method, big.NewInt(int64(log.BlockNumber)+method.BlockOffset))
 					if err != nil {
 						res <- apolloTypes.CallResult{
 							Err: fmt.Errorf("calling method on event: %w", err),
@@ -401,7 +404,9 @@ func (c ChainService) ListenForGlobalEvents(schema *dsl.DynamicSchema, res chan<
 					results = append(results, callResult)
 				}
 
-				res <- *aggregateCallResults(results...)
+				callResult := *aggregateCallResults(results...)
+				callResult.QueryName = query.Name
+				res <- callResult
 			}(log)
 		}
 	}
@@ -444,7 +449,7 @@ func (c ChainService) HandleLog(log types.Log, chain apolloTypes.Chain, contract
 	return &apolloTypes.CallResult{
 		Type:            apolloTypes.Event,
 		Chain:           chain,
-		ContractName:    contractName,
+		Identifier:      contractName,
 		ContractAddress: log.Address,
 		BlockNumber:     log.BlockNumber,
 		TxHash:          log.TxHash,

@@ -17,7 +17,7 @@ import (
 
 // RunMethodCaller starts a listener on the `blocks` channel, and on every incoming block it will execute all methods concurrently
 // on the given blockNumber.
-func (c *ChainService) RunMethodCaller(schema *dsl.DynamicSchema, realtime bool, blocks <-chan *big.Int, out chan<- apolloTypes.CallResult) {
+func (c *ChainService) RunMethodCaller(query *dsl.Query, realtime bool, blocks <-chan *big.Int, out chan<- apolloTypes.CallResult) {
 	res := make(chan apolloTypes.CallResult)
 	var wg sync.WaitGroup
 
@@ -28,7 +28,7 @@ func (c *ChainService) RunMethodCaller(schema *dsl.DynamicSchema, realtime bool,
 			wg.Add(1)
 			go func(blockNumber *big.Int) {
 				defer wg.Done()
-				for _, contract := range schema.Contracts {
+				for _, contract := range query.Contracts {
 					var wg2 sync.WaitGroup
 					var results []*apolloTypes.CallResult
 					for _, method := range contract.Methods {
@@ -36,7 +36,7 @@ func (c *ChainService) RunMethodCaller(schema *dsl.DynamicSchema, realtime bool,
 						go func(contract *dsl.Contract, method *dsl.Method) {
 							defer wg2.Done()
 							// c.logger.Debug().Str("contract", contract.Name).Msg("calling contract methods")
-							result, err := c.CallMethod(schema.Chain, contract.Name, contract.Address(), contract.Abi, method, blockNumber)
+							result, err := c.CallMethod(query.Chain, query.Name, contract.Address(), contract.Abi, method, blockNumber)
 							if err != nil {
 								res <- apolloTypes.CallResult{
 									Err: err,
@@ -57,6 +57,7 @@ func (c *ChainService) RunMethodCaller(schema *dsl.DynamicSchema, realtime bool,
 			}(blockNumber)
 		}
 
+		// Wait for all the goroutines to finish
 		wg.Wait()
 
 		// When all of our methods have executed AND the blocks channel was closed on the other side,
@@ -72,6 +73,8 @@ func (c *ChainService) RunMethodCaller(schema *dsl.DynamicSchema, realtime bool,
 			if realtime {
 				r.Timestamp = uint64(time.Now().UnixMilli() / 1000)
 			}
+
+			r.QueryName = query.Name
 
 			out <- r
 		}
@@ -133,7 +136,7 @@ func (c ChainService) CallMethod(chain apolloTypes.Chain, name string, address c
 		BlockNumber:     actualBlockNumber,
 		Timestamp:       block.Time,
 		Chain:           chain,
-		ContractName:    name,
+		Identifier:      name,
 		ContractAddress: address,
 		Inputs:          inputs,
 		Outputs:         outputs,

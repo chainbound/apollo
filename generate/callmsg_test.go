@@ -16,11 +16,11 @@ func TestBuildInput(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(schema.Contracts[0].Methods) == 0 {
+	if len(schema.Queries[0].Contracts[0].Methods) == 0 {
 		return
 	}
 
-	method := schema.Contracts[0].Methods[0]
+	method := schema.Queries[0].Contracts[0].Methods[0]
 	file, err := os.Open("../test/erc20.abi.json")
 	if err != nil {
 		t.Fatal(err)

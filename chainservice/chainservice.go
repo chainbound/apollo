@@ -3,9 +3,12 @@ package chainservice
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"time"
 
+	"github.com/chainbound/apollo/dsl"
 	"github.com/chainbound/apollo/log"
+	apolloTypes "github.com/chainbound/apollo/types"
 
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/rs/zerolog"
@@ -56,6 +59,53 @@ type EvaluationResult struct {
 	Name string
 	Err  error
 	Res  map[string]cty.Value
+}
+
+func (c *ChainService) Start(schema *dsl.DynamicSchema, opts apolloTypes.ApolloOpts, out chan<- apolloTypes.CallResult) {
+	blocks := make(chan *big.Int)
+
+	for _, query := range schema.Queries {
+		switch {
+
+		// CONTRACT METHODS
+		case query.HasContractMethods():
+			c.RunMethodCaller(query, opts.Realtime, blocks, out)
+
+			// Start main program loop
+			if opts.Realtime {
+				go func() {
+					for {
+						blocks <- nil
+						time.Sleep(time.Duration(opts.Interval) * time.Second)
+					}
+				}()
+			} else {
+				go func() {
+					for i := opts.StartBlock; i < opts.EndBlock; i += opts.Interval {
+						blocks <- big.NewInt(i)
+					}
+
+					close(blocks)
+				}()
+			}
+
+		// GLOBAL EVENTS
+		case query.HasGlobalEvents():
+			if opts.Realtime {
+				c.ListenForGlobalEvents(query, out)
+			} else {
+				c.FilterGlobalEvents(query, big.NewInt(opts.StartBlock), big.NewInt(opts.EndBlock), out)
+			}
+
+		// CONTRACT EVENTS
+		case query.HasContractEvents():
+			if opts.Realtime {
+				c.ListenForEvents(query, out)
+			} else {
+				c.FilterEvents(query, big.NewInt(opts.StartBlock), big.NewInt(opts.EndBlock), out)
+			}
+		}
+	}
 }
 
 func (c ChainService) BlockByTimestamp(ctx context.Context, timestamp int64) (int64, error) {

@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"math/big"
 	"os"
 	"path"
 	"time"
@@ -186,34 +185,9 @@ func Run(opts types.ApolloOpts) error {
 	}
 
 	// First check if there are any methods to be called, it might just be events
-	blocks := make(chan *big.Int)
 	chainResults := make(chan types.CallResult)
 
-	service.RunMethodCaller(schema, opts.Realtime, blocks, chainResults)
-
-	// Start main program loop
-	if opts.Realtime {
-		go func() {
-			for {
-				blocks <- nil
-				time.Sleep(time.Duration(opts.Interval) * time.Second)
-			}
-		}()
-	} else {
-		go func() {
-			for i := opts.StartBlock; i < opts.EndBlock; i += opts.Interval {
-				blocks <- big.NewInt(i)
-			}
-
-			close(blocks)
-		}()
-	}
-
-	if opts.Realtime {
-		service.ListenForEvents(schema, chainResults)
-	} else {
-		service.FilterEvents(schema, big.NewInt(opts.StartBlock), big.NewInt(opts.EndBlock), chainResults)
-	}
+	service.Start(schema, opts, chainResults)
 
 	for res := range chainResults {
 		if res.Err != nil {
@@ -221,12 +195,12 @@ func Run(opts types.ApolloOpts) error {
 			continue
 		}
 
-		save, err := schema.EvaluateSaveBlock(res.Type, res.ContractName, dsl.GenerateVarMap(res))
+		save, err := schema.EvalSave(res.Type, res.QueryName, res.Identifier, dsl.GenerateVarMap(res))
 		if err != nil {
 			return fmt.Errorf("evaluating save block: %w", err)
 		}
 
-		err = out.HandleResult(res.ContractName, save)
+		err = out.HandleResult(res.QueryName, save)
 		if err != nil {
 			return fmt.Errorf("handling result: %w", err)
 		}

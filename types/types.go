@@ -42,7 +42,8 @@ type CallResult struct {
 	Err             error
 	Chain           Chain
 	Type            ResultType
-	ContractName    string
+	QueryName       string
+	Identifier      string
 	ContractAddress common.Address
 	BlockNumber     uint64
 	Timestamp       uint64

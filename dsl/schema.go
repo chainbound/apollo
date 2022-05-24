@@ -25,20 +25,129 @@ var (
 )
 
 type DynamicSchema struct {
-	Chain types.Chain `hcl:"chain"`
+	// TODO: remove
+	Chain     types.Chain          `hcl:"chain"`
+	Variables map[string]cty.Value `hcl:"variables,optional"`
 	// Contract schema's
-	Contracts []*Contract `hcl:"contract,block"`
-	// Global events
-	Events []*Event `hcl:"event,block"`
+	Queries []*Query `hcl:"query,block"`
 
 	EvalContext *hcl.EvalContext
 }
 
 func (s DynamicSchema) Validate(opts types.ApolloOpts) error {
+	for _, q := range s.Queries {
+		err := q.Validate(opts)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// TOP LEVEL EVALCONTEXT
+func (s *DynamicSchema) EvalVariables() {
+	for k, v := range s.Variables {
+		s.EvalContext.Variables[k] = v
+
+		for _, query := range s.Queries {
+			query.EvalContext.Variables[k] = v
+		}
+	}
+}
+
+// CONTRACT LEVEL EVALCONTEXT: should modify inputs & outputs, save them in parent context (query context)
+// PROBLEM: this should only work on a contract level, it should not have access to variables of the
+// other contract
+// Use `identifier`: in the case of contracts it's the address, in the case of global events it's the
+// `OutputName()`
+func (q *Query) EvalTransforms(tp types.ResultType, identifier string) error {
+	fmt.Println("evaluating transforms")
+	if tp == types.GlobalEvent {
+		fmt.Println("global event")
+		for _, event := range q.Events {
+			if event.OutputName() == identifier {
+				mv := make(map[string]cty.Value)
+				diags := gohcl.DecodeBody(event.Transforms.Options, q.EvalContext, &mv)
+				if diags.HasErrors() {
+					return diags.Errs()[0]
+				}
+
+				fmt.Printf("tranform decoded: %+v", mv)
+
+				for k, v := range mv {
+					q.EvalContext.Variables[k] = v
+				}
+			}
+		}
+	} else {
+		fmt.Println("contract")
+		fmt.Println(identifier)
+		for _, c := range q.Contracts {
+			if c.Address().String() == identifier {
+				mv := make(map[string]cty.Value)
+				diags := gohcl.DecodeBody(c.Transforms.Options, q.EvalContext, &mv)
+				if diags.HasErrors() {
+					return diags.Errs()[0]
+				}
+
+				fmt.Printf("tranform decoded: %+v", mv)
+
+				for k, v := range mv {
+					q.EvalContext.Variables[k] = v
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// QUERY LEVEL EVALCONTEXT
+// EvalSave updates the evaluation context and
+// evaluates the save block. The results will be returned as a map.
+func (s *DynamicSchema) EvalSave(tp types.ResultType, queryName string, identifier string, vars map[string]cty.Value) (map[string]cty.Value, error) {
+	// Update evaluation context
+	// s.EvalContext.Variables = vars
+	// saves := make(map[string]cty.Value)
+
+	outputs := make(map[string]cty.Value)
+	for _, q := range s.Queries {
+		if q.Name == queryName {
+			for k, v := range vars {
+				q.EvalContext.Variables[k] = v
+			}
+
+			if err := q.EvalTransforms(tp, identifier); err != nil {
+				return nil, err
+			}
+
+			diags := gohcl.DecodeBody(q.Saves.Options, q.EvalContext, &outputs)
+			if diags.HasErrors() {
+				return nil, diags.Errs()[0]
+			}
+		}
+	}
+
+	return outputs, nil
+}
+
+type Query struct {
+	Name      string      `hcl:"name,label"`
+	Chain     types.Chain `hcl:"chain"`
+	Contracts []*Contract `hcl:"contract,block"`
+	// Global events
+	Events []*Event `hcl:"event,block"`
+	Saves  Save     `hcl:"save,block"`
+
+	EvalContext *hcl.EvalContext
+}
+
+func (q Query) Validate(opts types.ApolloOpts) error {
 	hasMethods := false
 	hasEvents := false
 	// hasGlobalEvents := len(s.Events) > 0
-	for _, c := range s.Contracts {
+	for _, c := range q.Contracts {
 		hasMethods = len(c.Methods) > 0
 		hasEvents = len(c.Events) > 0
 	}
@@ -72,14 +181,40 @@ func (s DynamicSchema) Validate(opts types.ApolloOpts) error {
 	return nil
 }
 
+func (q Query) HasGlobalEvents() bool {
+	return len(q.Events) > 0
+}
+
+func (q Query) HasContractEvents() (hasContractEvents bool) {
+	for _, c := range q.Contracts {
+		if len(c.Events) > 0 {
+			hasContractEvents = true
+		}
+	}
+
+	return
+}
+
+func (q Query) HasContractMethods() (hasContractMethods bool) {
+	for _, c := range q.Contracts {
+		if len(c.Methods) > 0 {
+			hasContractMethods = true
+		}
+	}
+
+	return
+}
+
 type Contract struct {
+	// TODO: remove
 	Name     string `hcl:"name,label"`
 	Address_ string `hcl:"address,label"`
 	AbiPath  string `hcl:"abi"`
 
 	Methods []*Method `hcl:"method,block"`
 	Events  []*Event  `hcl:"event,block"`
-	Saves   Save      `hcl:"save,block"`
+
+	Transforms *Transform `hcl:"transform,block"`
 
 	// The ABI will get injected when decoding the schema
 	Abi abi.ABI
@@ -110,7 +245,7 @@ type Event struct {
 	Outputs_ []string  `hcl:"outputs"`
 	Methods  []*Method `hcl:"method,block"`
 
-	Saves *Save `hcl:"save,block"`
+	Transforms *Transform `hcl:"transform,block"`
 
 	Abi abi.ABI
 }
@@ -125,6 +260,13 @@ func (e Event) Outputs() []string {
 
 func (e Event) OutputName() string {
 	return e.Name_ + "_events"
+}
+
+type Transform struct {
+	// These should be decoded in a later step with different evaluation contexts,
+	// because they should provide access to things like inputs, outputs,
+	// block numbers, tx hashes etc.
+	Options hcl.Body `hcl:",remain"`
 }
 
 type Save struct {
@@ -159,84 +301,53 @@ func NewSchema(confDir string) (*DynamicSchema, error) {
 		return nil, diags.Errs()[0]
 	}
 
-	ctx := InitialContext()
+	schemaContext := InitialContext()
 	s := &DynamicSchema{
-		EvalContext: &ctx,
+		EvalContext: &schemaContext,
 	}
 
-	diags = gohcl.DecodeBody(file.Body, &ctx, s)
+	diags = gohcl.DecodeBody(file.Body, &schemaContext, s)
 	if diags.HasErrors() {
 		return nil, diags.Errs()[0]
 	}
 
-	for _, event := range s.Events {
-		f, err := os.Open(path.Join(confDir, event.AbiPath))
-		if err != nil {
-			return nil, fmt.Errorf("ParseV2: reading ABI file: %w", err)
+	for _, query := range s.Queries {
+		queryContext := InitialContext()
+		query.EvalContext = &queryContext
+
+		for _, event := range query.Events {
+			f, err := os.Open(path.Join(confDir, event.AbiPath))
+			if err != nil {
+				return nil, fmt.Errorf("ParseV2: reading ABI file: %w", err)
+			}
+
+			abi, err := abi.JSON(f)
+			if err != nil {
+				return nil, fmt.Errorf("ParseV2: parsing ABI")
+			}
+
+			event.Abi = abi
 		}
 
-		abi, err := abi.JSON(f)
-		if err != nil {
-			return nil, fmt.Errorf("ParseV2: parsing ABI")
-		}
+		for _, contract := range query.Contracts {
+			f, err := os.Open(path.Join(confDir, contract.AbiPath))
+			if err != nil {
+				return nil, fmt.Errorf("ParseV2: reading ABI file: %w", err)
+			}
 
-		event.Abi = abi
+			abi, err := abi.JSON(f)
+			if err != nil {
+				return nil, fmt.Errorf("ParseV2: parsing ABI")
+			}
+
+			contract.Abi = abi
+		}
 	}
 
-	for _, contract := range s.Contracts {
-		f, err := os.Open(path.Join(confDir, contract.AbiPath))
-		if err != nil {
-			return nil, fmt.Errorf("ParseV2: reading ABI file: %w", err)
-		}
-
-		abi, err := abi.JSON(f)
-		if err != nil {
-			return nil, fmt.Errorf("ParseV2: parsing ABI")
-		}
-
-		contract.Abi = abi
-	}
+	// Evaluate top-level variables
+	s.EvalVariables()
 
 	return s, nil
-}
-
-// EvaluateSaveBlock updates the evaluation context and
-// evaluates the save block. The results will be returned as a map.
-func (s *DynamicSchema) EvaluateSaveBlock(tp types.ResultType, contractName string, vars map[string]cty.Value) (map[string]cty.Value, error) {
-	s.EvalContext.Variables = vars
-	saves := make(map[string]cty.Value)
-
-	if tp == types.GlobalEvent {
-		for _, event := range s.Events {
-			if event.OutputName() == contractName {
-				mv := make(map[string]cty.Value)
-				diags := gohcl.DecodeBody(event.Saves.Options, s.EvalContext, &mv)
-				if diags.HasErrors() {
-					return nil, diags.Errs()[0]
-				}
-
-				for k, v := range mv {
-					saves[k] = v
-				}
-			}
-		}
-	} else {
-		for _, c := range s.Contracts {
-			if c.Name == contractName {
-				mv := make(map[string]cty.Value)
-				diags := gohcl.DecodeBody(c.Saves.Options, s.EvalContext, &mv)
-				if diags.HasErrors() {
-					return nil, diags.Errs()[0]
-				}
-
-				for k, v := range mv {
-					saves[k] = v
-				}
-			}
-		}
-	}
-
-	return saves, nil
 }
 
 func GenerateVarMap(cr types.CallResult) map[string]cty.Value {
