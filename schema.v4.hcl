@@ -13,78 +13,88 @@ variables = {
   usdc = "0xusdc"
 }
 
+// `query` block to group things that need to be saved together
+query {
+  // GENERAL IDEAS =========================================================
+  // Gets the native asset balance
+  balance "0xe1Dd30fecAb8a63105F2C035B084BfC6Ca5B1493" {}
 
-// GENERAL IDEAS =========================================================
-// Gets the native asset balance
-balance "0xe1Dd30fecAb8a63105F2C035B084BfC6Ca5B1493" {}
+  // CONTRACT IDEAS =========================================================
+  contract usdc_eth_reserves "0x905dfCD5649217c42684f23958568e533C711Aa3" {
+    abi = "unipair.abi.json"
 
-// CONTRACT IDEAS =========================================================
-contract usdc_eth_reserves "0x905dfCD5649217c42684f23958568e533C711Aa3" {
-  abi = "unipair.abi.json"
+    // Call methods
+    method getReserves {
+      outputs = ["_reserve0", "_reserve1"]
+    }
 
-  // Call methods
-  method getReserves {
-    outputs = ["_reserve0", "_reserve1"]
+    transform {
+      eth_reserve_usdc = parse_decimals(_reserve0, 18)
+      usdc_reserve = parse_decimals(_reserve1, 6)
+
+      mid_price_usdc = parse_decimals(_reserve1, 6) / parse_decimals(_reserve0, 18)
+    }
   }
 
-  transform {
-    eth_reserve_usdc = parse_decimals(_reserve0, 18)
-    usdc_reserve = parse_decimals(_reserve1, 6)
+  contract usdt_eth_reserves "0x905dfCD5649217c42684f23958568e533C711Aa3" {
+    abi = "unipair.abi.json"
 
-    mid_price_usdc = parse_decimals(_reserve1, 6) / parse_decimals(_reserve0, 18)
-  }
-}
+    // Call methods
+    method getReserves {
+      outputs = ["_reserve0", "_reserve1"]
+    }
 
-contract usdt_eth_reserves "0x905dfCD5649217c42684f23958568e533C711Aa3" {
-  abi = "unipair.abi.json"
+    transform {
+      eth_reserve_usdt = parse_decimals(_reserve0, 18)
+      usdt_reserve = parse_decimals(_reserve1, 6)
 
-  // Call methods
-  method getReserves {
-    outputs = ["_reserve0", "_reserve1"]
-  }
-
-  transform {
-    eth_reserve_usdt = parse_decimals(_reserve0, 18)
-    usdt_reserve = parse_decimals(_reserve1, 6)
-
-    mid_price_usdt = parse_decimals(_reserve1, 6) / parse_decimals(_reserve0, 18)
-  }
-}
-
-// Standalone save block to combine outputs from different contract calls
-save {
-  timestamp = timestamp
-  block = blocknumber
-  contract = contract_address
-
-  // Might be useful for arbs? This price difference should theoretically be very small.
-  price_diff = mid_price_usdc - mid_price_usdt
-}
-
-// EVENT IDEAS ===========================================================
-// Standalone events
-event Transfer {
-  abi = "erc20.abi.json"
-
-  outputs = [
-    "from",
-    "to",
-    "value"
-  ]
-
-  // Because it could be any ERC20 transfer, we don't
-  // know the decimals in advance and need to call them.
-  // The code would somehow need to know that it should call this on
-  // the contract that emitted the event.
-  method decimals {
-    outputs = ["decimals"]
+      mid_price_usdt = parse_decimals(_reserve1, 6) / parse_decimals(_reserve0, 18)
+    }
   }
 
-  // filter list
   filter = [
-    value != 0,
-    from == "0x..."
+    mid_price_usdc - mid_price_usdt > 10
   ]
+
+  // Standalone save block to combine outputs from different contract calls
+  save {
+    timestamp = timestamp
+    block = blocknumber
+    contract = contract_address
+
+    // Might be useful for arbs? This price difference should theoretically be very small.
+    price_diff = mid_price_usdc - mid_price_usdt
+  }
+}
+
+
+
+query {
+  // EVENT IDEAS ===========================================================
+  // Standalone events
+  event Transfer {
+    abi = "erc20.abi.json"
+
+    outputs = [
+      "from",
+      "to",
+      "value"
+    ]
+
+    // Because it could be any ERC20 transfer, we don't
+    // know the decimals in advance and need to call them.
+    // The code would somehow need to know that it should call this on
+    // the contract that emitted the event.
+    method decimals {
+      outputs = ["decimals"]
+    }
+
+    // filter list
+    filter = [
+      value != 0,
+      from == "0x..."
+    ]
+  }
 
   save {
     sender = from
