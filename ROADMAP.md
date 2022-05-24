@@ -15,7 +15,7 @@
   **end** of a block, while events are on the transaction level)
   - [ ] Filter lists
       - Example: when one of these evaluates to `false`, don't proceed to `transform` or `save`. This should also be a top-level
-      block.
+      block. It's like an SQL `WHERE` clause.
       ```hcl
         filter = [
             _reserve0 != 0,
