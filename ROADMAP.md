@@ -25,10 +25,10 @@
   - [x] Standalone events (not emitted from a certain contract)
         - Example: if we want **every** ERC20 transfer, we don't want to define the `event` in a `contract` block but as a top-level block.
   - [ ] Native asset balances with a `balance` block
-  - [ ] `transform` blocks, which are contract level blocks to define and transform variables to be used later in the top-level save blocks 
-  - [ ] `save` block should be a top-level block so that we can do cross-contract operations
+  - [x] `transform` blocks, which are contract level blocks to define and transform variables to be used later in the top-level save blocks 
+  - [x] `save` block should be a top-level block so that we can do cross-contract operations
       - This only works for results that happen at the same time, i.e. method calls
-  - [ ] Variables
+  - [x] Variables
   - [ ] Request batching
   - [ ] Multi-chain global events
   - [ ] Multi-chain native balances 
