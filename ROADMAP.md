@@ -39,6 +39,8 @@
   - [ ]   division by zero (`?:` operator)
   - [ ]   `block_offset`
   - [ ]   `for_loops`
+  - [ ]   `filter`
+
   - [ ] Refactor + error handling and reliability
 
 - [ ] **v1.1.0-beta**
@@ -63,3 +65,6 @@
   - [ ] Look into Apache Spark and SQL for collecting data
   - [ ] Python library
   - [ ] JavaScript / TypeScript library
+
+## Notes
+
