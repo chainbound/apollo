@@ -13,7 +13,7 @@
   - [x] Working DB output
   - [x] Ability to call methods when logs occur, and not just at a random interval. This would make it easier for some use cases. The DSL syntax will be defining a method block inside of an event block. NOTE: method calls are at the block level (happen at the 
   **end** of a block, while events are on the transaction level)
-  - [ ] Filter lists
+  - [x] Filter lists
       - Example: when one of these evaluates to `false`, don't proceed to `transform` or `save`. This should also be a top-level
       block. It's like an SQL `WHERE` clause.
       ```hcl
