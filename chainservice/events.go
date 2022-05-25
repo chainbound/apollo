@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 func (c ChainService) FilterEvents(query *dsl.Query, fromBlock, toBlock *big.Int, out chan<- apolloTypes.CallResult) {
@@ -69,6 +70,8 @@ func (c ChainService) FilterEvents(query *dsl.Query, fromBlock, toBlock *big.Int
 					defer cancel()
 
 					start, end := big.NewInt(i), big.NewInt(i+blockRange-1)
+					// Rate limit the rpc call
+					c.rateLimiter.Take()
 					logs, err := c.client.FilterLogs(ctx, ethereum.FilterQuery{
 						FromBlock: start,
 						ToBlock:   end,
@@ -102,6 +105,8 @@ func (c ChainService) FilterEvents(query *dsl.Query, fromBlock, toBlock *big.Int
 							results := []*apolloTypes.CallResult{result}
 							for _, method := range event.Methods {
 								c.logger.Trace().Int64("block_offset", method.BlockOffset).Msg("calling method at event")
+								// Rate limit the rpc call
+								c.rateLimiter.Take()
 								callResult, err := c.CallMethod(query.Chain, cs.Address(), cs.Abi, method, big.NewInt(int64(log.BlockNumber)+method.BlockOffset))
 								if err != nil {
 									res <- apolloTypes.CallResult{
@@ -182,6 +187,8 @@ func (c ChainService) FilterGlobalEvents(query *dsl.Query, fromBlock, toBlock *b
 			defer cancel()
 
 			start, end := big.NewInt(i), big.NewInt(i+blockRange-1)
+			// Rate limit the rpc call
+			c.rateLimiter.Take()
 			logs, err := c.client.FilterLogs(ctx, ethereum.FilterQuery{
 				FromBlock: start,
 				ToBlock:   end,
@@ -220,6 +227,8 @@ func (c ChainService) FilterGlobalEvents(query *dsl.Query, fromBlock, toBlock *b
 					results := []*apolloTypes.CallResult{result}
 					for _, method := range event.Methods {
 						c.logger.Trace().Int64("block_offset", method.BlockOffset).Msg("calling method at event")
+						// Rate limit the rpc call
+						c.rateLimiter.Take()
 						callResult, err := c.CallMethod(query.Chain, log.Address, event.Abi, method, big.NewInt(int64(log.BlockNumber)+method.BlockOffset))
 						if err != nil {
 							res <- apolloTypes.CallResult{
@@ -278,6 +287,8 @@ func (c ChainService) ListenForEvents(query *dsl.Query, out chan<- apolloTypes.C
 				ctx, cancel := context.WithTimeout(context.Background(), c.defaultTimeout)
 				defer cancel()
 
+				// Rate limit the rpc call
+				c.rateLimiter.Take()
 				sub, err := c.client.SubscribeFilterLogs(ctx, ethereum.FilterQuery{
 					Addresses: []common.Address{cs.Address()},
 					Topics: [][]common.Hash{
@@ -308,6 +319,8 @@ func (c ChainService) ListenForEvents(query *dsl.Query, out chan<- apolloTypes.C
 						results := []*apolloTypes.CallResult{result}
 						for _, method := range event.Methods {
 							c.logger.Trace().Int64("block_offset", method.BlockOffset).Msg("calling method at event")
+							// Rate limit the rpc call
+							c.rateLimiter.Take()
 							callResult, err := c.CallMethod(query.Chain, cs.Address(), cs.Abi, method, big.NewInt(int64(log.BlockNumber)+method.BlockOffset))
 							if err != nil {
 								res <- apolloTypes.CallResult{
@@ -421,10 +434,10 @@ func (c ChainService) ListenForGlobalEvents(query *dsl.Query, res chan<- apolloT
 	}
 }
 
+// HandleLog unpacks the raw log.Data into our desired output, and it requests the timestamp over the network.
 func (c ChainService) HandleLog(log types.Log, chain apolloTypes.Chain, contractName string, abi abi.ABI, event *dsl.Event, indexedEvents map[string]int) (*apolloTypes.CallResult, error) {
 	// Check and wait for rate limiter if necessary
 	c.logger.Trace().Str("event", event.Name_).Msg("handling log")
-	c.rateLimiter.Take()
 	ctx, cancel := context.WithTimeout(context.Background(), c.defaultTimeout)
 	defer cancel()
 
@@ -448,7 +461,11 @@ func (c ChainService) HandleLog(log types.Log, chain apolloTypes.Chain, contract
 		outputs[k] = v
 	}
 
+	c.rateLimiter.Take()
 	h, err := c.client.HeaderByNumber(ctx, big.NewInt(int64(log.BlockNumber)))
+	// rpc.BatchElem
+	var rpcc rpc.Client
+	rpcc.BatchCall([]rpc.BatchElem{})
 	if err != nil {
 		if err != nil {
 			return nil, fmt.Errorf("getting block header: %w", err)

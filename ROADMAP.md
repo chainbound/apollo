@@ -30,15 +30,16 @@
       - This only works for results that happen at the same time, i.e. method calls
   - [x] Variables
   - [ ] Request batching
+  - [ ] Schema validation
   - [ ] Multi-chain global events
   - [ ] Multi-chain native balances 
   - [ ] ETH + ARBI node deployment 
   - [ ] Major update of Docs
   - [x] Add more context variables: `tx_index`, `block_hash`
-  - [ ] In Documentation add 'advanceed features'
-  - [ ]   division by zero (`?:` operator)
-  - [ ]   `block_offset`
-  - [ ]   `for_loops`
+  - [ ] In Documentation add 'advanced features'
+    - [ ] division by zero (`?:` operator)
+    - [ ] `block_offset`
+    - [ ] `for_loops`
   - [ ] Refactor + error handling and reliability
 
 - [ ] **v1.1.0-beta**
