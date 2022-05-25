@@ -60,6 +60,10 @@ func (s *DynamicSchema) EvalVariables() {
 func (q *Query) EvalTransforms(tp types.ResultType, identifier string) error {
 	if tp == types.GlobalEvent {
 		for _, event := range q.Events {
+			if event.Transforms == nil {
+				return nil
+			}
+
 			if event.OutputName() == identifier {
 				mv := make(map[string]cty.Value)
 				diags := gohcl.DecodeBody(event.Transforms.Options, q.EvalContext, &mv)
@@ -74,6 +78,10 @@ func (q *Query) EvalTransforms(tp types.ResultType, identifier string) error {
 		}
 	} else {
 		for _, c := range q.Contracts {
+			if c.Transforms == nil {
+				return nil
+			}
+
 			if c.Address().String() == identifier {
 				mv := make(map[string]cty.Value)
 				diags := gohcl.DecodeBody(c.Transforms.Options, q.EvalContext, &mv)
@@ -337,14 +345,18 @@ func NewSchema(confDir string) (*DynamicSchema, error) {
 	return s, nil
 }
 
-func GenerateVarMap(cr types.CallResult) map[string]cty.Value {
+func GenerateContextVars(cr types.CallResult) map[string]cty.Value {
 	m := make(map[string]cty.Value)
 
 	m["contract_address"], _ = gocty.ToCtyValue(cr.ContractAddress.String(), cty.String)
-
 	m["blocknumber"], _ = gocty.ToCtyValue(cr.BlockNumber, cty.Number)
 	m["timestamp"], _ = gocty.ToCtyValue(cr.Timestamp, cty.Number)
 	m["block_hash"], _ = gocty.ToCtyValue(cr.BlockHash.String(), cty.String)
+
+	if cr.Type != types.Method {
+		m["tx_hash"], _ = gocty.ToCtyValue(cr.TxHash.String(), cty.String)
+		m["tx_index"], _ = gocty.ToCtyValue(cr.TxIndex, cty.Number)
+	}
 
 	for k, v := range cr.Inputs {
 		switch v.(type) {
@@ -362,11 +374,6 @@ func GenerateVarMap(cr types.CallResult) map[string]cty.Value {
 		default:
 			m[k], _ = gocty.ToCtyValue(v, cty.Number)
 		}
-	}
-
-	if cr.Type != types.Method {
-		m["tx_hash"], _ = gocty.ToCtyValue(cr.TxHash.String(), cty.String)
-		m["tx_index"], _ = gocty.ToCtyValue(cr.TxIndex, cty.Number)
 	}
 
 	return m

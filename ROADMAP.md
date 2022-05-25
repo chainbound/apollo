@@ -30,11 +30,12 @@
       - This only works for results that happen at the same time, i.e. method calls
   - [x] Variables
   - [ ] Request batching
+  - [ ] Algorithm for determining `event` range (start big, if we get error, read range and modify)
   - [ ] Multi-chain global events
   - [ ] Multi-chain native balances 
   - [ ] ETH + ARBI node deployment 
   - [ ] Major update of Docs
-  - [ ] for events add: log index, trx index, block hash, sender 
+  - [x] Add more context variables: `tx_index`, `block_hash`
   - [ ] In Documentation add 'advanceed features'
   - [ ]   division by zero (`?:` operator)
   - [ ]   `block_offset`
@@ -49,6 +50,7 @@
   - [ ] Different stream output option for latency-sensitive operations (like mempool monitoring): i.e. Websocket, SSE 
       - Latency sensitive operations would probably also need different evaluation options. I think evaluating everything in the save block might take some time, would need to benchmark that. An option is to just not have a save block and stream everything as-is, let the application take care of decoding.
   - [ ] JSON output
+  - [ ] Events: `tx_sender` context variable
   - [ ] Generalized SQL output (MySQL, SQL Server)
   - [ ] Aggregation operations like group by, sum, avg
   - [ ] Unverified methods and events
