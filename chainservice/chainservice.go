@@ -17,19 +17,19 @@ import (
 )
 
 type ChainService struct {
-	client     *ethclient.Client
+	rlClient   *RateLimitedClient
 	blockDater BlockDater
 	logger     zerolog.Logger
 
-	defaultTimeout time.Duration
-	rateLimiter    ratelimit.Limiter
+	defaultTimeout    time.Duration
+	requestsPerSecond int
 }
 
 func NewChainService(defaultTimeout time.Duration, requestsPerSecond int) *ChainService {
 	return &ChainService{
-		defaultTimeout: defaultTimeout,
-		rateLimiter:    ratelimit.New(requestsPerSecond),
-		logger:         log.NewLogger("chainservice"),
+		defaultTimeout:    defaultTimeout,
+		requestsPerSecond: requestsPerSecond,
+		logger:            log.NewLogger("chainservice"),
 	}
 }
 
@@ -41,16 +41,16 @@ func (c *ChainService) Connect(ctx context.Context, rpcUrl string) (*ChainServic
 
 	c.logger.Debug().Str("rpc", rpcUrl).Msg("connected to rpc")
 
-	c.client = client
+	c.rlClient = NewRateLimitedClient(client, ratelimit.New(c.requestsPerSecond))
 	c.blockDater = NewBlockDater(client)
 	return c, nil
 }
 
 func (c ChainService) IsConnected() bool {
-	if c.client == nil {
+	if c.rlClient.client == nil {
 		return false
 	} else {
-		_, err := c.client.NetworkID(context.Background())
+		_, err := c.rlClient.client.NetworkID(context.Background())
 		return err == nil
 	}
 }
@@ -128,4 +128,11 @@ func (c ChainService) SecondsToBlockInterval(ctx context.Context, seconds int64)
 
 	c.logger.Info().Int64("seconds", seconds).Int64("blocks", n).Msg("set block interval")
 	return n, nil
+}
+
+func (c ChainService) DumpMetrics() {
+	c.logger.Info().Msgf("contract_calls: %d requests", c.rlClient.contractCallRequests)
+	c.logger.Info().Msgf("header_by_number: %d requests", c.rlClient.headerByNumberRequests)
+	c.logger.Info().Msgf("subscribe_logs: %d requests", c.rlClient.subscribeRequests)
+	c.logger.Info().Msgf("filter_logs: %d requests", c.rlClient.filterRequests)
 }

@@ -212,5 +212,7 @@ func Run(opts types.ApolloOpts) error {
 		}
 	}
 
+	service.DumpMetrics()
+
 	return nil
 }
