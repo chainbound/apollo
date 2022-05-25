@@ -34,6 +34,7 @@
   - [ ] Multi-chain native balances 
   - [ ] ETH + ARBI node deployment 
   - [ ] Major update of Docs
+  - [ ] Add `for loops` functionality
   - [x] Add more context variables: `tx_index`, `block_hash`
   - [ ] In Documentation add 'advanceed features'
     - [ ] division by zero (`?:` operator)
