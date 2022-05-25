@@ -34,6 +34,11 @@
   - [ ] Multi-chain native balances 
   - [ ] ETH + ARBI node deployment 
   - [ ] Major update of Docs
+  - [ ] for events add: log index, trx index, block hash, sender 
+  - [ ] In Documentation add 'advanceed features'
+  - [ ]   division by zero (`?:` operator)
+  - [ ]   `block_offset`
+  - [ ]   `for_loops`
   - [ ] Refactor + error handling and reliability
 
 - [ ] **v1.1.0-beta**
