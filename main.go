@@ -201,6 +201,11 @@ func Run(opts types.ApolloOpts) error {
 			return fmt.Errorf("evaluating save block: %w", err)
 		}
 
+		// Result got filtered out
+		if save == nil {
+			continue
+		}
+
 		err = out.HandleResult(res.QueryName, save)
 		if err != nil {
 			return fmt.Errorf("handling result: %w", err)

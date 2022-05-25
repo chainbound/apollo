@@ -30,7 +30,6 @@
       - This only works for results that happen at the same time, i.e. method calls
   - [x] Variables
   - [ ] Request batching
-  - [ ] Algorithm for determining `event` range (start big, if we get error, read range and modify)
   - [ ] Multi-chain global events
   - [ ] Multi-chain native balances 
   - [ ] ETH + ARBI node deployment 
@@ -51,6 +50,7 @@
       - Latency sensitive operations would probably also need different evaluation options. I think evaluating everything in the save block might take some time, would need to benchmark that. An option is to just not have a save block and stream everything as-is, let the application take care of decoding.
   - [ ] JSON output
   - [ ] Events: `tx_sender` context variable
+  - [ ] Algorithm for determining `event` range (start big, if we get error, read range and modify)
   - [ ] Generalized SQL output (MySQL, SQL Server)
   - [ ] Aggregation operations like group by, sum, avg
   - [ ] Unverified methods and events

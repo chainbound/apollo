@@ -56,6 +56,10 @@ query usdc_eth_swaps {
     }
   }
 
+  filter = [
+    eth_reserve > 90
+  ]
+
   // Besides the normal context, the "save" block for events provides an additional
   // variable "tx_hash".
   save {

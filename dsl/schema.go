@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
+	"github.com/hashicorp/hcl/v2/hcldec"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/gocty"
@@ -53,6 +54,22 @@ func (s *DynamicSchema) EvalVariables() {
 		}
 	}
 }
+
+type Query struct {
+	Name      string      `hcl:"name,label"`
+	Chain     types.Chain `hcl:"chain"`
+	Contracts []*Contract `hcl:"contract,block"`
+	// Global events
+	Events  []*Event `hcl:"event,block"`
+	Filters hcl.Body `hcl:"filter,remain"`
+	Saves   Save     `hcl:"save,block"`
+
+	EvalContext *hcl.EvalContext
+}
+
+// type Filter struct {
+// 	Options hcl.Body `hcl:",remain"`
+// }
 
 // EvalTransforms evaluates the transformation block per contract / top-level method.
 // The identifier is the OutputName of the method or the name of the contract in other
@@ -99,13 +116,49 @@ func (q *Query) EvalTransforms(tp types.ResultType, identifier string) error {
 	return nil
 }
 
-// EvalSave updates the evaluation context, evaluates the transform blocks and then
-// evaluates the save block. The results will be returned as a map.
-func (s *DynamicSchema) EvalSave(tp types.ResultType, queryName string, identifier string, vars map[string]cty.Value) (map[string]cty.Value, error) {
+func (s *DynamicSchema) EvalFilter(queryName string) (bool, error) {
 	// Update evaluation context
 	// s.EvalContext.Variables = vars
 	// saves := make(map[string]cty.Value)
 
+	filterspec := hcldec.AttrSpec{
+		Name: "filter",
+		Type: cty.List(cty.Bool),
+	}
+
+	var filters []bool
+	for _, q := range s.Queries {
+		if q.Name == queryName {
+			if q.Filters == nil {
+				return true, nil
+			}
+
+			v, diags := hcldec.Decode(q.Filters, &filterspec, q.EvalContext)
+			// diags := gohcl.DecodeBody(q.Filters, q.EvalContext, &outputs)
+			if diags.HasErrors() {
+				return false, diags.Errs()[0]
+			}
+
+			err := gocty.FromCtyValue(v, &filters)
+			if err != nil {
+				return false, err
+			}
+		}
+	}
+
+	// Check if all outputs evaluate to true, otherwise return false
+	for _, result := range filters {
+		if !result {
+			return false, nil
+		}
+	}
+
+	return true, nil
+}
+
+// EvalSave updates the evaluation context, evaluates the transform blocks and then
+// evaluates the save block. The results will be returned as a map.
+func (s *DynamicSchema) EvalSave(tp types.ResultType, queryName string, identifier string, vars map[string]cty.Value) (map[string]cty.Value, error) {
 	outputs := make(map[string]cty.Value)
 	for _, q := range s.Queries {
 		if q.Name == queryName {
@@ -124,18 +177,16 @@ func (s *DynamicSchema) EvalSave(tp types.ResultType, queryName string, identifi
 		}
 	}
 
+	ok, err := s.EvalFilter(queryName)
+	if err != nil {
+		return nil, err
+	}
+
+	if !ok {
+		return nil, nil
+	}
+
 	return outputs, nil
-}
-
-type Query struct {
-	Name      string      `hcl:"name,label"`
-	Chain     types.Chain `hcl:"chain"`
-	Contracts []*Contract `hcl:"contract,block"`
-	// Global events
-	Events []*Event `hcl:"event,block"`
-	Saves  Save     `hcl:"save,block"`
-
-	EvalContext *hcl.EvalContext
 }
 
 func (q Query) Validate(opts types.ApolloOpts) error {
