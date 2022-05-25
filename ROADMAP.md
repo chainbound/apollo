@@ -36,9 +36,9 @@
   - [ ] Major update of Docs
   - [x] Add more context variables: `tx_index`, `block_hash`
   - [ ] In Documentation add 'advanceed features'
-  - [ ]   division by zero (`?:` operator)
-  - [ ]   `block_offset`
-  - [ ]   `for_loops`
+    - [ ] division by zero (`?:` operator)
+    - [ ]  `block_offset`
+    - [ ]  `for_loops`
   - [ ] Refactor + error handling and reliability
 
 - [ ] **v1.1.0-beta**
