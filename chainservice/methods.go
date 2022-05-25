@@ -134,6 +134,7 @@ func (c ChainService) CallMethod(chain apolloTypes.Chain, address common.Address
 	return &apolloTypes.CallResult{
 		Type:            apolloTypes.Method,
 		BlockNumber:     actualBlockNumber,
+		BlockHash:       block.Hash(),
 		Timestamp:       block.Time,
 		Chain:           chain,
 		Identifier:      address.String(),

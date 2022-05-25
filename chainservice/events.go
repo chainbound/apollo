@@ -131,6 +131,8 @@ func (c ChainService) FilterEvents(query *dsl.Query, fromBlock, toBlock *big.Int
 			r.QueryName = query.Name
 			out <- r
 		}
+
+		close(out)
 	}()
 }
 
@@ -459,7 +461,9 @@ func (c ChainService) HandleLog(log types.Log, chain apolloTypes.Chain, contract
 		Identifier:      contractName,
 		ContractAddress: log.Address,
 		BlockNumber:     log.BlockNumber,
+		BlockHash:       log.BlockHash,
 		TxHash:          log.TxHash,
+		TxIndex:         log.TxIndex,
 		Timestamp:       h.Time,
 		Outputs:         outputs,
 	}, nil

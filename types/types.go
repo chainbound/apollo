@@ -46,8 +46,12 @@ type CallResult struct {
 	Identifier      string
 	ContractAddress common.Address
 	BlockNumber     uint64
-	Timestamp       uint64
-	TxHash          common.Hash
-	Inputs          map[string]any
-	Outputs         map[string]any
+	BlockHash       common.Hash
+
+	Timestamp uint64
+	TxSender  common.Address
+	TxIndex   uint
+	TxHash    common.Hash
+	Inputs    map[string]any
+	Outputs   map[string]any
 }

@@ -344,6 +344,7 @@ func GenerateVarMap(cr types.CallResult) map[string]cty.Value {
 
 	m["blocknumber"], _ = gocty.ToCtyValue(cr.BlockNumber, cty.Number)
 	m["timestamp"], _ = gocty.ToCtyValue(cr.Timestamp, cty.Number)
+	m["block_hash"], _ = gocty.ToCtyValue(cr.BlockHash.String(), cty.String)
 
 	for k, v := range cr.Inputs {
 		switch v.(type) {
@@ -365,6 +366,7 @@ func GenerateVarMap(cr types.CallResult) map[string]cty.Value {
 
 	if cr.Type != types.Method {
 		m["tx_hash"], _ = gocty.ToCtyValue(cr.TxHash.String(), cty.String)
+		m["tx_index"], _ = gocty.ToCtyValue(cr.TxIndex, cty.Number)
 	}
 
 	return m
