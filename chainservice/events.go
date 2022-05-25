@@ -69,7 +69,7 @@ func (c ChainService) FilterEvents(query *dsl.Query, fromBlock, toBlock *big.Int
 					defer cancel()
 
 					start, end := big.NewInt(i), big.NewInt(i+blockRange-1)
-					logs, err := c.client.FilterLogs(ctx, ethereum.FilterQuery{
+					logs, err := c.rlClient.FilterLogs(ctx, ethereum.FilterQuery{
 						FromBlock: start,
 						ToBlock:   end,
 						Addresses: []common.Address{cs.Address()},
@@ -182,7 +182,7 @@ func (c ChainService) FilterGlobalEvents(query *dsl.Query, fromBlock, toBlock *b
 			defer cancel()
 
 			start, end := big.NewInt(i), big.NewInt(i+blockRange-1)
-			logs, err := c.client.FilterLogs(ctx, ethereum.FilterQuery{
+			logs, err := c.rlClient.FilterLogs(ctx, ethereum.FilterQuery{
 				FromBlock: start,
 				ToBlock:   end,
 				Topics: [][]common.Hash{
@@ -278,7 +278,8 @@ func (c ChainService) ListenForEvents(query *dsl.Query, out chan<- apolloTypes.C
 				ctx, cancel := context.WithTimeout(context.Background(), c.defaultTimeout)
 				defer cancel()
 
-				sub, err := c.client.SubscribeFilterLogs(ctx, ethereum.FilterQuery{
+				// Rate limit the rpc call
+				sub, err := c.rlClient.SubscribeFilterLogs(ctx, ethereum.FilterQuery{
 					Addresses: []common.Address{cs.Address()},
 					Topics: [][]common.Hash{
 						{topic},
@@ -373,7 +374,7 @@ func (c ChainService) ListenForGlobalEvents(query *dsl.Query, res chan<- apolloT
 		ctx, cancel := context.WithTimeout(context.Background(), c.defaultTimeout)
 		defer cancel()
 
-		sub, err := c.client.SubscribeFilterLogs(ctx, ethereum.FilterQuery{
+		sub, err := c.rlClient.SubscribeFilterLogs(ctx, ethereum.FilterQuery{
 			Topics: [][]common.Hash{
 				{topic},
 			},
@@ -421,10 +422,10 @@ func (c ChainService) ListenForGlobalEvents(query *dsl.Query, res chan<- apolloT
 	}
 }
 
+// HandleLog unpacks the raw log.Data into our desired output, and it requests the timestamp over the network.
 func (c ChainService) HandleLog(log types.Log, chain apolloTypes.Chain, contractName string, abi abi.ABI, event *dsl.Event, indexedEvents map[string]int) (*apolloTypes.CallResult, error) {
 	// Check and wait for rate limiter if necessary
 	c.logger.Trace().Str("event", event.Name_).Msg("handling log")
-	c.rateLimiter.Take()
 	ctx, cancel := context.WithTimeout(context.Background(), c.defaultTimeout)
 	defer cancel()
 
@@ -448,7 +449,7 @@ func (c ChainService) HandleLog(log types.Log, chain apolloTypes.Chain, contract
 		outputs[k] = v
 	}
 
-	h, err := c.client.HeaderByNumber(ctx, big.NewInt(int64(log.BlockNumber)))
+	h, err := c.rlClient.HeaderByNumber(ctx, big.NewInt(int64(log.BlockNumber)))
 	if err != nil {
 		if err != nil {
 			return nil, fmt.Errorf("getting block header: %w", err)

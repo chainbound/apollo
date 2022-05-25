@@ -134,7 +134,6 @@ func (s *DynamicSchema) EvalFilter(queryName string) (bool, error) {
 			}
 
 			v, diags := hcldec.Decode(q.Filters, &filterspec, q.EvalContext)
-			// diags := gohcl.DecodeBody(q.Filters, q.EvalContext, &outputs)
 			if diags.HasErrors() {
 				return false, diags.Errs()[0]
 			}

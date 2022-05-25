@@ -35,7 +35,6 @@ func (c *ChainService) RunMethodCaller(query *dsl.Query, realtime bool, blocks <
 						wg2.Add(1)
 						go func(contract *dsl.Contract, method *dsl.Method) {
 							defer wg2.Done()
-							// c.logger.Debug().Str("contract", contract.Name).Msg("calling contract methods")
 							result, err := c.CallMethod(query.Chain, contract.Address(), contract.Abi, method, blockNumber)
 							if err != nil {
 								res <- apolloTypes.CallResult{
@@ -91,14 +90,13 @@ func (c ChainService) CallMethod(chain apolloTypes.Chain, address common.Address
 	ctx, cancel := context.WithTimeout(context.Background(), c.defaultTimeout)
 	defer cancel()
 
-	c.rateLimiter.Take()
 	msg, err := generate.BuildCallMsg(address, method, abi)
 	if err != nil {
 		return nil, fmt.Errorf("building call message: %w", err)
 	}
 	c.logger.Trace().Str("to", msg.To.String()).Str("input", common.Bytes2Hex(msg.Data)).Msg("built call message")
 
-	raw, err := c.client.CallContract(ctx, msg, blockNumber)
+	raw, err := c.rlClient.CallContract(ctx, msg, blockNumber)
 	if err != nil {
 		return nil, fmt.Errorf("calling contract method: %w", err)
 	}
@@ -120,7 +118,7 @@ func (c ChainService) CallMethod(chain apolloTypes.Chain, address common.Address
 	}
 
 	actualBlockNumber := uint64(0)
-	block, err := c.client.HeaderByNumber(ctx, blockNumber)
+	block, err := c.rlClient.HeaderByNumber(ctx, blockNumber)
 	if err != nil {
 		return nil, fmt.Errorf("getting block number %w", err)
 	}
