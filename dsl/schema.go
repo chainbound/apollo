@@ -414,6 +414,8 @@ func GenerateContextVars(cr types.CallResult) map[string]cty.Value {
 
 	for k, v := range cr.Outputs {
 		switch v.(type) {
+		case common.Address:
+			m[k], _ = gocty.ToCtyValue(v.(common.Address).String(), cty.String)
 		case string:
 			m[k], _ = gocty.ToCtyValue(v, cty.String)
 		default:

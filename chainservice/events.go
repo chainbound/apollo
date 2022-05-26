@@ -120,6 +120,7 @@ func (c ChainService) FilterEvents(query *dsl.Query, fromBlock, toBlock *big.Int
 			}
 		}
 
+		c.logger.Debug().Msg("waiting for goroutines to finish")
 		wg.Wait()
 
 		close(res)
