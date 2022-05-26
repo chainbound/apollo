@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"time"
 
 	"github.com/chainbound/apollo/types"
 
@@ -26,22 +27,17 @@ var (
 )
 
 type DynamicSchema struct {
-	Variables map[string]cty.Value `hcl:"variables,optional"`
+	StartTime    int64                `hcl:"start_time,optional"`
+	EndTime      int64                `hcl:"end_time,optional"`
+	TimeInterval int64                `hcl:"time_interval,optional"`
+	StartBlock   int64                `hcl:"start_block,optional"`
+	EndBlock     int64                `hcl:"end_block,optional"`
+	Interval     int64                `hcl:"interval,optional"`
+	Variables    map[string]cty.Value `hcl:"variables,optional"`
 	// Contract schema's
 	Queries []*Query `hcl:"query,block"`
 
 	EvalContext *hcl.EvalContext
-}
-
-func (s DynamicSchema) Validate(opts types.ApolloOpts) error {
-	for _, q := range s.Queries {
-		err := q.Validate(opts)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 // EvalVariables loads the variables into the top-level evaluation context.
@@ -117,10 +113,6 @@ func (q *Query) EvalTransforms(tp types.ResultType, identifier string) error {
 }
 
 func (s *DynamicSchema) EvalFilter(queryName string) (bool, error) {
-	// Update evaluation context
-	// s.EvalContext.Variables = vars
-	// saves := make(map[string]cty.Value)
-
 	filterspec := hcldec.AttrSpec{
 		Name: "filter",
 		Type: cty.List(cty.Bool),
@@ -188,24 +180,25 @@ func (s *DynamicSchema) EvalSave(tp types.ResultType, queryName string, identifi
 	return outputs, nil
 }
 
-func (q Query) Validate(opts types.ApolloOpts) error {
+func (s DynamicSchema) Validate(opts types.ApolloOpts) error {
 	hasMethods := false
 	hasEvents := false
-	// hasGlobalEvents := len(s.Events) > 0
-	for _, c := range q.Contracts {
-		hasMethods = len(c.Methods) > 0
-		hasEvents = len(c.Events) > 0
+	for _, q := range s.Queries {
+		for _, c := range q.Contracts {
+			hasMethods = len(c.Methods) > 0
+			hasEvents = len(c.Events) > 0
+		}
 	}
 
 	if hasMethods {
 		if opts.Realtime {
-			if opts.Interval == 0 && opts.TimeInterval == 0 {
+			if s.Interval == 0 && s.TimeInterval == 0 {
 				return ErrNoIntervalRealtime
 			}
 		}
 
-		if (opts.StartBlock != 0 && opts.EndBlock != 0) || (opts.StartTime != 0 && opts.EndTime != 0) {
-			if opts.Interval == 0 && opts.TimeInterval == 0 {
+		if (s.StartBlock != 0 && s.EndBlock != 0) || (s.StartTime != 0 && s.EndTime != 0) {
+			if s.Interval == 0 && s.TimeInterval == 0 {
 				return ErrNoIntervalHistorical
 			}
 		}
@@ -213,11 +206,11 @@ func (q Query) Validate(opts types.ApolloOpts) error {
 
 	if hasEvents {
 		if !opts.Realtime {
-			if opts.Interval != 0 {
+			if s.Interval != 0 {
 				return ErrIntervalDefinedForHistoricalEvents
 			}
 
-			if opts.TimeInterval != 0 {
+			if s.TimeInterval != 0 {
 				return ErrIntervalDefinedForHistoricalEvents
 			}
 		}
@@ -326,7 +319,9 @@ type Save struct {
 func InitialContext() hcl.EvalContext {
 	return hcl.EvalContext(hcl.EvalContext{
 		Functions: Functions,
-		Variables: map[string]cty.Value{},
+		Variables: map[string]cty.Value{
+			"now": cty.NumberIntVal(time.Now().UnixMilli() / 1000),
+		},
 	})
 }
 

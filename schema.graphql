@@ -1,0 +1,18 @@
+query usdc_eth_swaps($chain: string) {
+  contract(address: "0x905dfCD5649217c42684f23958568e533C711Aa3", abi: "unipair.abi.json") {
+    event(name: "Swap") {
+      amount1In(transform: parse_decimals(6)) {
+
+      }
+      amount0Out(transform: parse_decimals(18)) {
+
+      }
+      amount0In(transform: parse_decimals(18)) {
+
+      }
+      amount1Out(transform: parse_decimals(6)) {
+
+      }
+    }
+  }
+}

@@ -150,22 +150,22 @@ func Run(opts types.ApolloOpts) error {
 		return err
 	}
 
-	if opts.StartBlock == 0 && opts.StartTime != 0 {
-		opts.StartBlock, err = service.BlockByTimestamp(ctx, opts.StartTime)
+	if schema.StartBlock == 0 && schema.StartTime != 0 {
+		schema.StartBlock, err = service.BlockByTimestamp(ctx, schema.StartTime)
 		if err != nil {
 			return err
 		}
 	}
 
-	if opts.EndBlock == 0 && opts.EndTime != 0 {
-		opts.EndBlock, err = service.BlockByTimestamp(ctx, opts.EndTime)
+	if schema.EndBlock == 0 && schema.EndTime != 0 {
+		schema.EndBlock, err = service.BlockByTimestamp(ctx, schema.EndTime)
 		if err != nil {
 			return err
 		}
 	}
 
-	if opts.Interval == 0 && opts.TimeInterval != 0 {
-		opts.Interval, err = service.SecondsToBlockInterval(ctx, opts.TimeInterval)
+	if schema.Interval == 0 && schema.TimeInterval != 0 {
+		schema.Interval, err = service.SecondsToBlockInterval(ctx, schema.TimeInterval)
 		if err != nil {
 			return err
 		}

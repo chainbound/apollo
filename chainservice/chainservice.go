@@ -76,12 +76,12 @@ func (c *ChainService) Start(schema *dsl.DynamicSchema, opts apolloTypes.ApolloO
 				go func() {
 					for {
 						blocks <- nil
-						time.Sleep(time.Duration(opts.Interval) * time.Second)
+						time.Sleep(time.Duration(schema.Interval) * time.Second)
 					}
 				}()
 			} else {
 				go func() {
-					for i := opts.StartBlock; i < opts.EndBlock; i += opts.Interval {
+					for i := schema.StartBlock; i < schema.EndBlock; i += schema.Interval {
 						blocks <- big.NewInt(i)
 					}
 
@@ -94,7 +94,7 @@ func (c *ChainService) Start(schema *dsl.DynamicSchema, opts apolloTypes.ApolloO
 			if opts.Realtime {
 				c.ListenForGlobalEvents(query, out)
 			} else {
-				c.FilterGlobalEvents(query, big.NewInt(opts.StartBlock), big.NewInt(opts.EndBlock), out)
+				c.FilterGlobalEvents(query, big.NewInt(schema.StartBlock), big.NewInt(schema.EndBlock), out)
 			}
 
 		// CONTRACT EVENTS
@@ -102,7 +102,7 @@ func (c *ChainService) Start(schema *dsl.DynamicSchema, opts apolloTypes.ApolloO
 			if opts.Realtime {
 				c.ListenForEvents(query, out)
 			} else {
-				c.FilterEvents(query, big.NewInt(opts.StartBlock), big.NewInt(opts.EndBlock), out)
+				c.FilterEvents(query, big.NewInt(schema.StartBlock), big.NewInt(schema.EndBlock), out)
 			}
 		}
 	}

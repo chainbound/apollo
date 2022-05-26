@@ -28,38 +28,6 @@ func BuildFlags(opts *types.ApolloOpts) []cli.Flag {
 			Usage:       "Print to stdout",
 			Destination: &opts.Stdout,
 		},
-		&cli.Int64Flag{
-			Name:        "interval",
-			Aliases:     []string{"i"},
-			Usage:       "Interval in `BLOCKS` or SECONDS (realtime: seconds, historic: blocks)",
-			Destination: &opts.Interval,
-		},
-		&cli.Int64Flag{
-			Name:        "time-interval",
-			Aliases:     []string{"I"},
-			Usage:       "Interval in seconds",
-			Destination: &opts.TimeInterval,
-		},
-		&cli.Int64Flag{
-			Name:        "start-block",
-			Usage:       "Starting block number for historical analysis",
-			Destination: &opts.StartBlock,
-		},
-		&cli.Int64Flag{
-			Name:        "end-block",
-			Usage:       "End block number for historical analysis",
-			Destination: &opts.EndBlock,
-		},
-		&cli.Int64Flag{
-			Name:        "start-time",
-			Usage:       "Start timestamp (UNIX) for historical analysis",
-			Destination: &opts.StartTime,
-		},
-		&cli.Int64Flag{
-			Name:        "end-time",
-			Usage:       "End timestamp (UNIX) for historical analysis",
-			Destination: &opts.EndTime,
-		},
 		&cli.IntFlag{
 			Name:        "rate-limit",
 			Usage:       "Rate limit `RPS` in max requests per second",

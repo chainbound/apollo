@@ -18,7 +18,9 @@
 //     mid_price = parse_decimals(_reserve1, 6) / parse_decimals(_reserve0, 18)
 //   }
 // }
-chain = "arbitrum"
+start_time = format_date("2022-05-14 12:14", "2022-05-25 12:00")
+end_time = now
+// time_interval = 20
 
 variables = {
   test_string = "hello"
@@ -33,7 +35,7 @@ variables = {
 query usdc_eth_swaps {
   chain = "arbitrum"
 
-  contract usdc_to_eth_swaps "0x905dfCD5649217c42684f23958568e533C711Aa3" {
+  contract "0x905dfCD5649217c42684f23958568e533C711Aa3" {
     abi = "unipair.abi.json"
     // Listen for events
     event Swap {

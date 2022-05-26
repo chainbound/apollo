@@ -1,6 +1,7 @@
 package dsl
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
 )
@@ -14,9 +15,13 @@ func TestNewSchema(t *testing.T) {
 	for k, v := range s.Variables {
 		fmt.Println(k, ":", v)
 	}
-	// sjson, err := json.MarshalIndent(s.Variables, "", "  ")
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
-	// fmt.Printf("%s\n", string(sjson))
+
+	s.EvalContext = nil
+	s.Queries = nil
+
+	sjson, err := json.MarshalIndent(s, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Printf("%s\n", string(sjson))
 }
