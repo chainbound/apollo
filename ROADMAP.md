@@ -37,10 +37,19 @@
   - [ ] Major update of Docs
   - [ ] Add `for loops` functionality
   - [x] Add more context variables: `tx_index`, `block_hash`
+<<<<<<< HEAD
+  - [ ] In Documentation add 'advanceed features'
+  - [ ]   division by zero (`?:` operator)
+  - [ ]   `block_offset`
+  - [ ]   `for_loops`
+  - [ ]   `filter`
+
+=======
   - [ ] In Documentation add 'advanced features'
     - [ ] division by zero (`?:` operator)
     - [ ] `block_offset`
     - [ ] `for_loops`
+>>>>>>> dfdd629c7cc18a4b603e2b4b91bf9535f9735d59
   - [ ] Refactor + error handling and reliability
 
 - [ ] **v1.1.0-beta**
@@ -65,3 +74,6 @@
   - [ ] Look into Apache Spark and SQL for collecting data
   - [ ] Python library
   - [ ] JavaScript / TypeScript library
+
+## Notes
+
