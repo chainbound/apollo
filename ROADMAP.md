@@ -24,18 +24,29 @@
       ```
   - [x] Standalone events (not emitted from a certain contract)
         - Example: if we want **every** ERC20 transfer, we don't want to define the `event` in a `contract` block but as a top-level block.
-  - [ ] Native asset balances with a `balance` block
   - [x] `transform` blocks, which are contract level blocks to define and transform variables to be used later in the top-level save blocks 
   - [x] `save` block should be a top-level block so that we can do cross-contract operations
       - This only works for results that happen at the same time, i.e. method calls
   - [x] Variables
   - [ ] Request batching
   - [ ] Schema validation
-  - [ ] Multi-chain global events
-  - [ ] Multi-chain native balances
-  - [ ] ETH + ARBI node deployment
+  - [x] ETH + ARBI node deployment
   - [ ] Major update of Docs
-  - [ ] Add `for loops` functionality
+  - [ ] Add loops
+        ```hcl
+        loop {
+          items = ["arbitrum", "ethereum", "polygon"]
+
+          query loop_query {
+            chain = item
+
+            ...
+          }
+        }
+        ```
+  - [ ] Custom helper functions
+    - [ ] `balance()`
+    - [ ] `token_balance()`
   - [x] Add more context variables: `tx_index`, `block_hash`
   - [ ] In Documentation add 'advanced features'
     - [ ] division by zero (`?:` operator)
@@ -51,13 +62,12 @@
   - [ ] Different stream output option for latency-sensitive operations (like mempool monitoring): i.e. Websocket, SSE 
       - Latency sensitive operations would probably also need different evaluation options. I think evaluating everything in the save block might take some time, would need to benchmark that. An option is to just not have a save block and stream everything as-is, let the application take care of decoding.
   - [ ] JSON output
-  - [ ] Events: `tx_sender` context variable
+  - [ ] Events: full transaction context (`tx_sender`, `tx_receiver`)
   - [ ] Algorithm for determining `event` range (start big, if we get error, read range and modify)
   - [ ] Generalized SQL output (MySQL, SQL Server)
   - [ ] Aggregation operations like group by, sum, avg
   - [ ] Unverified methods and events
   - [ ] Cross-chain address monitoring
-  - [ ] Loops (multiple inputs => call method for every input)
 
 ## Later
 - [ ] **v1.2.0-beta**
