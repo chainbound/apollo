@@ -33,7 +33,8 @@
   - [x] ETH + ARBI node deployment
   - [ ] Major update of Docs
   - [ ] Add loops
-        ```hcl
+      ```hcl
+
         loop {
           items = ["arbitrum", "ethereum", "polygon"]
 
@@ -43,7 +44,7 @@
             ...
           }
         }
-        ```
+      ```
   - [ ] Custom helper functions
     - [ ] `balance()`
     - [ ] `token_balance()`
