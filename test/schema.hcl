@@ -1,46 +1,23 @@
-
-// contract usdc_eth_reserves "0x905dfCD5649217c42684f23958568e533C711Aa3" {
-//   abi = "unipair.abi.json"
-
-//   // Call methods
-//   method getReserves {
-//     // These are the outputs we're interested in. They are available 
-//     // to transform as variables in the "save" block below. Outputs should
-//     // be provided as a list.
-//     outputs = ["_reserve0", "_reserve1"]
-//   }
-
-//   save {
-//     block = blocknumber
-//     timestamp = timestamp
-//     eth_reserve = parse_decimals(_reserve0, 18)
-//     usdc_reserve = parse_decimals(_reserve1, 6)
-//     mid_price = parse_decimals(_reserve1, 6) / parse_decimals(_reserve0, 18)
-//   }
-// }
-start_time = format_date("2022-05-14 12:14", "2022-05-25 12:00")
-end_time = now
-// time_interval = 20
-
 variables = {
-  test_string = "hello"
-  test_number = 10
+  arbi = "arbitrum"
+  abi = "unipair.abi.json"
+
+  pool = "0x905dfCD5649217c42684f23958568e533C711Aa3"
+
+  dude = 14
 }
 
-// A query defines one output (csv file, SQL table, ...)
-// Everything in a query needs to be something that's happening at the same time:
-// * multiple methods on different contracts
-// * multiple methods on the same contracts
-// * single events
 query usdc_eth_swaps {
-  chain = "arbitrum"
+  chain = arbi
 
-  contract "0x905dfCD5649217c42684f23958568e533C711Aa3" {
-    abi = "unipair.abi.json"
+  contract "pool" {
+    abi = abi
+
     // Listen for events
     event Swap {
       // The outputs we're interested in, same way as with methods.
       outputs = ["amount1In", "amount0Out", "amount0In", "amount1Out"]
+      // outputs = [for s in test : upper(s)]
 
       method getReserves {
         // Call at the previous block
@@ -80,3 +57,24 @@ query usdc_eth_swaps {
   }
 }
 
+query v2_pair_created_p2 {
+  // Each query can have a different chain
+  chain = "ethereum"
+
+  event PairCreated {
+    abi = abi
+    outputs = ["token0", "token1", "pair"]
+
+  }
+
+  // Besides the normal context, the "save" block for events provides an additional
+  // variable "tx_hash". "save" blocks are at the query-level and have access to variables
+  // defined in the "transform" block
+  save {
+    timestamp = timestamp
+    block = blocknumber
+    token0 = token0
+    token1 = token1
+    pair = pair
+  }
+}

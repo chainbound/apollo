@@ -13,13 +13,12 @@ func TestNewSchema(t *testing.T) {
 	}
 
 	for k, v := range s.Variables {
-		fmt.Println(k, ":", v)
+		fmt.Println(k, ":", v.GoString())
 	}
 
-	s.EvalContext = nil
-	s.Queries = nil
+	// s.Queries = nil
 
-	sjson, err := json.MarshalIndent(s, "", "  ")
+	sjson, err := json.MarshalIndent(s.Queries, "", "  ")
 	if err != nil {
 		t.Fatal(err)
 	}

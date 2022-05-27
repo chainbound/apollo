@@ -133,43 +133,13 @@ func Run(opts types.ApolloOpts) error {
 		}
 	}
 
-	// TODO: ONLY 1 query at the same time for now
-	rpc, ok := cfg.Rpc[schema.Queries[0].Chain]
-	if !ok {
-		return fmt.Errorf("no rpc defined for chain %s", opts.Chain)
-	}
-
 	defaultTimeout := time.Second * 60
 
 	// Long timeout
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 
-	service, err := chainservice.NewChainService(defaultTimeout, opts.RateLimit).Connect(ctx, rpc)
-	if err != nil {
-		return err
-	}
-
-	if schema.StartBlock == 0 && schema.StartTime != 0 {
-		schema.StartBlock, err = service.BlockByTimestamp(ctx, schema.StartTime)
-		if err != nil {
-			return err
-		}
-	}
-
-	if schema.EndBlock == 0 && schema.EndTime != 0 {
-		schema.EndBlock, err = service.BlockByTimestamp(ctx, schema.EndTime)
-		if err != nil {
-			return err
-		}
-	}
-
-	if schema.Interval == 0 && schema.TimeInterval != 0 {
-		schema.Interval, err = service.SecondsToBlockInterval(ctx, schema.TimeInterval)
-		if err != nil {
-			return err
-		}
-	}
+	service := chainservice.NewChainService(defaultTimeout, opts.RateLimit, cfg.Rpc)
 
 	out := output.NewOutputHandler()
 
@@ -188,7 +158,14 @@ func Run(opts types.ApolloOpts) error {
 	// First check if there are any methods to be called, it might just be events
 	chainResults := make(chan types.CallResult)
 
-	go service.Start(schema, opts, chainResults)
+	go func() error {
+		err := service.Start(ctx, schema, opts, chainResults)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}()
 
 	for res := range chainResults {
 		if res.Err != nil {

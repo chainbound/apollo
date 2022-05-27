@@ -24,6 +24,8 @@ func (c ChainService) FilterEvents(query *dsl.Query, fromBlock, toBlock *big.Int
 		toBlock = nil
 	}
 
+	rlClient := c.rlClients[query.Chain]
+
 	go func() {
 		for _, cs := range query.Contracts {
 			for _, event := range cs.Events {
@@ -69,7 +71,7 @@ func (c ChainService) FilterEvents(query *dsl.Query, fromBlock, toBlock *big.Int
 					defer cancel()
 
 					start, end := big.NewInt(i), big.NewInt(i+blockRange-1)
-					logs, err := c.rlClient.FilterLogs(ctx, ethereum.FilterQuery{
+					logs, err := rlClient.FilterLogs(ctx, ethereum.FilterQuery{
 						FromBlock: start,
 						ToBlock:   end,
 						Addresses: []common.Address{cs.Address()},
@@ -140,6 +142,8 @@ func (c ChainService) FilterEvents(query *dsl.Query, fromBlock, toBlock *big.Int
 func (c ChainService) FilterGlobalEvents(query *dsl.Query, fromBlock, toBlock *big.Int, res chan<- apolloTypes.CallResult) {
 	var wg sync.WaitGroup
 
+	rlClient := c.rlClients[query.Chain]
+
 	for _, event := range query.Events {
 		c.logger.Debug().
 			Str("event", event.Name()).Str("from_block", fromBlock.String()).
@@ -183,7 +187,7 @@ func (c ChainService) FilterGlobalEvents(query *dsl.Query, fromBlock, toBlock *b
 			defer cancel()
 
 			start, end := big.NewInt(i), big.NewInt(i+blockRange-1)
-			logs, err := c.rlClient.FilterLogs(ctx, ethereum.FilterQuery{
+			logs, err := rlClient.FilterLogs(ctx, ethereum.FilterQuery{
 				FromBlock: start,
 				ToBlock:   end,
 				Topics: [][]common.Hash{
@@ -243,11 +247,13 @@ func (c ChainService) FilterGlobalEvents(query *dsl.Query, fromBlock, toBlock *b
 	}
 
 	wg.Wait()
+	close(res)
 }
 
 func (c ChainService) ListenForEvents(query *dsl.Query, out chan<- apolloTypes.CallResult) {
 	res := make(chan apolloTypes.CallResult)
 	logChan := make(chan types.Log)
+	rlClient := c.rlClients[query.Chain]
 
 	go func() {
 		for _, cs := range query.Contracts {
@@ -280,7 +286,7 @@ func (c ChainService) ListenForEvents(query *dsl.Query, out chan<- apolloTypes.C
 				defer cancel()
 
 				// Rate limit the rpc call
-				sub, err := c.rlClient.SubscribeFilterLogs(ctx, ethereum.FilterQuery{
+				sub, err := rlClient.SubscribeFilterLogs(ctx, ethereum.FilterQuery{
 					Addresses: []common.Address{cs.Address()},
 					Topics: [][]common.Hash{
 						{topic},
@@ -346,6 +352,7 @@ func (c ChainService) ListenForEvents(query *dsl.Query, out chan<- apolloTypes.C
 
 func (c ChainService) ListenForGlobalEvents(query *dsl.Query, res chan<- apolloTypes.CallResult) {
 	logChan := make(chan types.Log)
+	rlClient := c.rlClients[query.Chain]
 
 	for _, event := range query.Events {
 		// Get first topic in Bytes (to filter events)
@@ -375,7 +382,7 @@ func (c ChainService) ListenForGlobalEvents(query *dsl.Query, res chan<- apolloT
 		ctx, cancel := context.WithTimeout(context.Background(), c.defaultTimeout)
 		defer cancel()
 
-		sub, err := c.rlClient.SubscribeFilterLogs(ctx, ethereum.FilterQuery{
+		sub, err := rlClient.SubscribeFilterLogs(ctx, ethereum.FilterQuery{
 			Topics: [][]common.Hash{
 				{topic},
 			},
@@ -430,6 +437,8 @@ func (c ChainService) HandleLog(log types.Log, chain apolloTypes.Chain, contract
 	ctx, cancel := context.WithTimeout(context.Background(), c.defaultTimeout)
 	defer cancel()
 
+	rlClient := c.rlClients[chain]
+
 	outputs := make(map[string]any)
 	for _, event := range event.Outputs_ {
 		if idx, ok := indexedEvents[event]; ok {
@@ -437,7 +446,6 @@ func (c ChainService) HandleLog(log types.Log, chain apolloTypes.Chain, contract
 		}
 	}
 
-	// fmt.Println(abi)
 	tmp := make(map[string]any)
 	if len(outputs) < len(event.Outputs_) {
 		err := abi.UnpackIntoMap(tmp, event.Name_, log.Data)
@@ -450,7 +458,7 @@ func (c ChainService) HandleLog(log types.Log, chain apolloTypes.Chain, contract
 		outputs[k] = v
 	}
 
-	h, err := c.rlClient.HeaderByNumber(ctx, big.NewInt(int64(log.BlockNumber)))
+	h, err := rlClient.HeaderByNumber(ctx, big.NewInt(int64(log.BlockNumber)))
 	if err != nil {
 		if err != nil {
 			return nil, fmt.Errorf("getting block header: %w", err)

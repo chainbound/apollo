@@ -85,6 +85,7 @@ func (c *ChainService) RunMethodCaller(query *dsl.Query, realtime bool, blocks <
 func (c ChainService) CallMethod(chain apolloTypes.Chain, address common.Address, abi abi.ABI, method *dsl.Method, blockNumber *big.Int) (*apolloTypes.CallResult, error) {
 	inputs := make(map[string]any)
 	outputs := make(map[string]any)
+	rlClient := c.rlClients[chain]
 
 	// If there are no methods on the contract, return
 	ctx, cancel := context.WithTimeout(context.Background(), c.defaultTimeout)
@@ -96,7 +97,7 @@ func (c ChainService) CallMethod(chain apolloTypes.Chain, address common.Address
 	}
 	c.logger.Trace().Str("to", msg.To.String()).Str("input", common.Bytes2Hex(msg.Data)).Msg("built call message")
 
-	raw, err := c.rlClient.CallContract(ctx, msg, blockNumber)
+	raw, err := rlClient.CallContract(ctx, msg, blockNumber)
 	if err != nil {
 		return nil, fmt.Errorf("calling contract method: %w", err)
 	}
@@ -118,7 +119,7 @@ func (c ChainService) CallMethod(chain apolloTypes.Chain, address common.Address
 	}
 
 	actualBlockNumber := uint64(0)
-	block, err := c.rlClient.HeaderByNumber(ctx, blockNumber)
+	block, err := rlClient.HeaderByNumber(ctx, blockNumber)
 	if err != nil {
 		return nil, fmt.Errorf("getting block number %w", err)
 	}
