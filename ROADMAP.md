@@ -48,6 +48,7 @@
   - [ ] Custom helper functions
     - [ ] `balance()`
     - [ ] `token_balance()`
+    - [ ] `is_contract()`
   - [x] Add more context variables: `tx_index`, `block_hash`
   - [ ] In Documentation add 'advanced features'
     - [ ] division by zero (`?:` operator)

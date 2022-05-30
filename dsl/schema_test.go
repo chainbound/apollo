@@ -12,9 +12,9 @@ func TestNewSchema(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for k, v := range s.Variables {
-		fmt.Println(k, ":", v.GoString())
-	}
+	// for k, v := range s.Variables {
+	// 	fmt.Println(k, ":", v.GoString())
+	// }
 
 	// s.Queries = nil
 

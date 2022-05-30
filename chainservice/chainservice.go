@@ -61,6 +61,7 @@ type EvaluationResult struct {
 func (c *ChainService) Start(ctx context.Context, schema *dsl.DynamicSchema, opts apolloTypes.ApolloOpts, out chan<- apolloTypes.CallResult) error {
 	blocks := make(chan *big.Int)
 
+	c.logger.Info().Msgf("running with %d queries", len(schema.Queries))
 	for _, query := range schema.Queries {
 		if _, err := c.Connect(ctx, query.Chain); err != nil {
 			return err

@@ -61,6 +61,10 @@ func (c ChainService) FilterEvents(query *dsl.Query, fromBlock, toBlock *big.Int
 				// but at a block range of 2000, we're going to need a lot of requests. For now we can try to run
 				// it with this hardcoded value, but we might need to read it from a config / implement a retry pattern.
 				blockRange := int64(4096)
+				if query.Chain == apolloTypes.ETHEREUM {
+					blockRange = int64(1024)
+				}
+
 				blockDiff := toBlock.Int64() - fromBlock.Int64()
 				if blockDiff < blockRange {
 					blockRange = blockDiff
@@ -177,6 +181,10 @@ func (c ChainService) FilterGlobalEvents(query *dsl.Query, fromBlock, toBlock *b
 		// but at a block range of 2000, we're going to need a lot of requests. For now we can try to run
 		// it with this hardcoded value, but we might need to read it from a config / implement a retry pattern.
 		blockRange := int64(4096)
+		if query.Chain == apolloTypes.ETHEREUM {
+			blockRange = int64(128)
+		}
+
 		blockDiff := toBlock.Int64() - fromBlock.Int64()
 		if blockDiff < blockRange {
 			blockRange = blockDiff
@@ -342,6 +350,7 @@ func (c ChainService) ListenForEvents(query *dsl.Query, out chan<- apolloTypes.C
 			r.Timestamp = uint64(time.Now().UnixMilli() / 1000)
 
 			r.QueryName = query.Name
+			r.Identifier = r.ContractAddress.String()
 
 			out <- r
 		}
@@ -413,6 +422,7 @@ func (c ChainService) ListenForGlobalEvents(query *dsl.Query, res chan<- apolloT
 					c.logger.Trace().Int64("block_offset", method.BlockOffset).Msg("calling method at event")
 					callResult, err := c.CallMethod(query.Chain, log.Address, event.Abi, method, big.NewInt(int64(log.BlockNumber)+method.BlockOffset))
 					if err != nil {
+						c.logger.Debug().Str("chain", string(query.Chain)).Str("address", log.Address.String()).Msg("problem calling method")
 						res <- apolloTypes.CallResult{
 							Err: fmt.Errorf("calling method on event: %w", err),
 						}
@@ -431,15 +441,24 @@ func (c ChainService) ListenForGlobalEvents(query *dsl.Query, res chan<- apolloT
 }
 
 // HandleLog unpacks the raw log.Data into our desired output, and it requests the timestamp over the network.
-func (c ChainService) HandleLog(log types.Log, chain apolloTypes.Chain, contractName string, abi abi.ABI, event *dsl.Event, indexedEvents map[string]int) (*apolloTypes.CallResult, error) {
-	// Check and wait for rate limiter if necessary
+func (c ChainService) HandleLog(log types.Log, chain apolloTypes.Chain, queryName string, abi abi.ABI, event *dsl.Event, indexedEvents map[string]int) (*apolloTypes.CallResult, error) {
+	if len(log.Data) == 0 {
+		fmt.Println("log.Data == 0")
+		return nil, nil
+	}
+
+	if len(indexedEvents) > len(log.Topics) {
+		fmt.Println("too many indexed events")
+		return nil, nil
+	}
+
 	c.logger.Trace().Str("event", event.Name_).Msg("handling log")
 	ctx, cancel := context.WithTimeout(context.Background(), c.defaultTimeout)
 	defer cancel()
 
 	rlClient := c.rlClients[chain]
+	outputs := make(map[string]any, len(event.Outputs_))
 
-	outputs := make(map[string]any)
 	for _, event := range event.Outputs_ {
 		if idx, ok := indexedEvents[event]; ok {
 			outputs[event] = fmt.Sprint(common.BytesToAddress(log.Topics[idx][:]))
@@ -450,6 +469,7 @@ func (c ChainService) HandleLog(log types.Log, chain apolloTypes.Chain, contract
 	if len(outputs) < len(event.Outputs_) {
 		err := abi.UnpackIntoMap(tmp, event.Name_, log.Data)
 		if err != nil {
+			c.logger.Debug().Str("chain", string(chain)).Str("tx_hash", log.TxHash.String()).Str("log.Data", common.Bytes2Hex(log.Data)).Msg("problem unpacking log.Data")
 			return nil, fmt.Errorf("unpacking log.Data: %w", err)
 		}
 	}
@@ -468,7 +488,7 @@ func (c ChainService) HandleLog(log types.Log, chain apolloTypes.Chain, contract
 	return &apolloTypes.CallResult{
 		Type:            apolloTypes.Event,
 		Chain:           chain,
-		Identifier:      contractName,
+		Identifier:      queryName,
 		ContractAddress: log.Address,
 		BlockNumber:     log.BlockNumber,
 		BlockHash:       log.BlockHash,

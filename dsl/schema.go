@@ -106,8 +106,9 @@ type DynamicSchema struct {
 	EndBlock     int64                `hcl:"end_block,optional"`
 	Interval     int64                `hcl:"interval,optional"`
 	Variables    map[string]cty.Value `hcl:"variables,optional"`
-	// Contract schema's
-	QueryConfig hcl.Body `hcl:",remain"`
+
+	// Represents the to-be-decoded queries / loops
+	SchemaConfig hcl.Body `hcl:",remain"`
 
 	Queries []*Query
 
@@ -129,12 +130,9 @@ type DynamicSchema struct {
 // 	}
 // }
 
-type Queries struct {
-	Name string `hcl:"name,label"`
-	// Chain    string   `hcl:"chain"`
-	// Template string   `hcl:"template,optional"`
-	// Filters  Filters  `hcl:"filter"`
-	Options hcl.Body `hcl:",remain"`
+type Loop struct {
+	Items []cty.Value `hcl:"items"`
+	Query hcl.Body    `hcl:",remain"`
 }
 
 type Filters struct {
@@ -248,6 +246,10 @@ func (s *DynamicSchema) EvalSave(tp types.ResultType, queryName string, identifi
 	outputs := make(map[string]cty.Value)
 	for _, q := range s.Queries {
 		if q.Name == queryName {
+			if q.EvalContext.Variables == nil {
+				q.EvalContext.Variables = make(map[string]cty.Value)
+			}
+
 			for k, v := range vars {
 				q.EvalContext.Variables[k] = v
 			}
@@ -450,25 +452,38 @@ func NewSchema(confDir string) (*DynamicSchema, error) {
 		s.EvalContext.Variables[k] = v
 	}
 
-	var q struct {
+	var topLevel struct {
+		Loop    *Loop    `hcl:"loop,block"`
 		Queries []*Query `hcl:"query,block"`
 	}
 
-	diags = gohcl.DecodeBody(s.QueryConfig, s.EvalContext, &q)
+	diags = gohcl.DecodeBody(s.SchemaConfig, s.EvalContext, &topLevel)
 	if diags.HasErrors() {
 		return nil, diags.Errs()[0]
 	}
 
-	s.Queries = q.Queries
+	// If there are top-level queries, immediately save them
+	s.Queries = append(s.Queries, topLevel.Queries...)
 
-	// err = gocty.FromCtyValue(val, &variables)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// fmt.Printf("%+v\n", variables)
+	// If there are loops, loop over the queries, decode them using
+	// the loop variables in the evaluation context, and save the queries.
+	if topLevel.Loop != nil {
+		for _, item := range topLevel.Loop.Items {
+			fmt.Println(item.GoString())
+			var loopLevel struct {
+				Queries []*Query `hcl:"query,block"`
+			}
 
-	// Loads the top-level variables into the evaluation context
-	// s.EvalVariables()
+			newCtx := InitialContext()
+			newCtx.Variables = map[string]cty.Value{"item": item}
+			diags = gohcl.DecodeBody(topLevel.Loop.Query, &newCtx, &loopLevel)
+			if diags.HasErrors() {
+				return nil, diags.Errs()[0]
+			}
+
+			s.Queries = append(s.Queries, loopLevel.Queries...)
+		}
+	}
 
 	for _, query := range s.Queries {
 		query.EvalContext = s.EvalContext
@@ -512,6 +527,7 @@ func GenerateContextVars(cr types.CallResult) map[string]cty.Value {
 	m["blocknumber"], _ = gocty.ToCtyValue(cr.BlockNumber, cty.Number)
 	m["timestamp"], _ = gocty.ToCtyValue(cr.Timestamp, cty.Number)
 	m["block_hash"], _ = gocty.ToCtyValue(cr.BlockHash.String(), cty.String)
+	m["chain"], _ = gocty.ToCtyValue(cr.Chain, cty.String)
 
 	if cr.Type != types.Method {
 		m["tx_hash"], _ = gocty.ToCtyValue(cr.TxHash.String(), cty.String)
