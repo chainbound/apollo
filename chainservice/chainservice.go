@@ -6,10 +6,13 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/chainbound/apollo/bindings/erc20"
 	"github.com/chainbound/apollo/dsl"
 	"github.com/chainbound/apollo/log"
 	apolloTypes "github.com/chainbound/apollo/types"
 
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/rs/zerolog"
 	"github.com/zclconf/go-cty/cty"
@@ -163,6 +166,55 @@ func (c ChainService) SecondsToBlockInterval(ctx context.Context, chain apolloTy
 
 	c.logger.Info().Int64("seconds", seconds).Int64("blocks", n).Msg("set block interval")
 	return n, nil
+}
+
+func (c ChainService) Balance(chain apolloTypes.Chain, address common.Address, block *big.Int) (float64, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	rawInt, err := c.rlClients[chain].client.BalanceAt(ctx, address, block)
+	if err != nil {
+		return 0, err
+	}
+
+	raw := new(big.Float).SetInt(rawInt)
+
+	decimals := new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)
+
+	parsed, _ := raw.Quo(raw, new(big.Float).SetInt(decimals)).Float64()
+
+	return parsed, nil
+}
+
+func (c ChainService) TokenBalance(chain apolloTypes.Chain, address, tokenAddress common.Address, block *big.Int) (float64, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	client := c.rlClients[chain].client
+
+	tokenCaller, err := erc20.NewErc20Caller(tokenAddress, client)
+	if err != nil {
+		return 0, fmt.Errorf("creating erc20 caller: %w", err)
+	}
+
+	opts := &bind.CallOpts{Context: ctx, BlockNumber: block}
+	rawDecimals, err := tokenCaller.Decimals(opts)
+	// rawInt, err := .BalanceAt(ctx, address, block)
+	if err != nil {
+		return 0, fmt.Errorf("reading erc20 decimals: %w", err)
+	}
+
+	rawInt, err := tokenCaller.BalanceOf(opts, address)
+	if err != nil {
+		return 0, fmt.Errorf("reading erc20 balanceOf: %w", err)
+	}
+
+	raw := new(big.Float).SetInt(rawInt)
+
+	decimals := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(rawDecimals)), nil)
+
+	parsed, _ := raw.Quo(raw, new(big.Float).SetInt(decimals)).Float64()
+
+	return parsed, nil
 }
 
 func (c ChainService) DumpMetrics() {

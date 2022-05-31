@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"math/big"
 	"os"
 	"path"
 	"time"
@@ -144,21 +145,30 @@ func (s *DynamicSchema) EvalFilter(queryName string) (bool, error) {
 	return true, nil
 }
 
+type ChainFunctionProvider interface {
+	Balance(types.Chain, common.Address, *big.Int) (float64, error)
+	TokenBalance(types.Chain, common.Address, common.Address, *big.Int) (float64, error)
+}
+
 // EvalSave updates the evaluation context, evaluates the transform blocks and then
 // evaluates the save block. The results will be returned as a map.
-func (s *DynamicSchema) EvalSave(tp types.ResultType, queryName string, identifier string, vars map[string]cty.Value) (map[string]cty.Value, error) {
+func (s *DynamicSchema) EvalSave(provider ChainFunctionProvider, res types.CallResult) (map[string]cty.Value, error) {
 	outputs := make(map[string]cty.Value)
 	for _, q := range s.Queries {
-		if q.Name == queryName {
+		if q.Name == res.QueryName {
 			if q.EvalContext.Variables == nil {
 				q.EvalContext.Variables = make(map[string]cty.Value)
 			}
 
-			for k, v := range vars {
+			for k, v := range GenerateContextVars(res) {
 				q.EvalContext.Variables[k] = v
 			}
 
-			if err := q.EvalTransforms(tp, identifier); err != nil {
+			for k, v := range BuildBalanceFunctions(provider, res.Chain, big.NewInt(int64(res.BlockNumber))) {
+				q.EvalContext.Functions[k] = v
+			}
+
+			if err := q.EvalTransforms(res.Type, res.Identifier); err != nil {
 				return nil, err
 			}
 
@@ -169,7 +179,7 @@ func (s *DynamicSchema) EvalSave(tp types.ResultType, queryName string, identifi
 		}
 	}
 
-	ok, err := s.EvalFilter(queryName)
+	ok, err := s.EvalFilter(res.QueryName)
 	if err != nil {
 		return nil, err
 	}

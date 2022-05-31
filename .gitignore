@@ -1,4 +1,6 @@
 *.csv
 .idea
 
+abi/
+
 schema.hcl

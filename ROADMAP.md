@@ -28,10 +28,8 @@
   - [x] `save` block should be a top-level block so that we can do cross-contract operations
       - This only works for results that happen at the same time, i.e. method calls
   - [x] Variables
-  - [ ] Request batching
   - [ ] Schema validation
   - [x] ETH + ARBI node deployment
-  - [ ] Major update of Docs
   - [x] Add loops
       ```hcl
 
@@ -45,15 +43,14 @@
           }
         }
       ```
-  - [ ] Custom helper functions
-    - [ ] `balance()`
-    - [ ] `token_balance()`
-    - [ ] `is_contract()`
+  - [x] Custom helper functions
+    - [x] `balance()`
+    - [x] `token_balance()`
   - [x] Add more context variables: `tx_index`, `block_hash`
-  - [ ] In Documentation add 'advanced features'
-    - [ ] division by zero (`?:` operator)
-    - [ ] `block_offset`
-    - [ ] `for_loops`
+  - [ ] Major update of Documentation
+    - [ ] Standalone domain
+    - [ ] Advanced features
+    - [ ] More schema examples
   - [ ] Refactor + error handling and reliability
 
 - [ ] **v1.1.0-beta**
@@ -70,6 +67,16 @@
   - [ ] Aggregation operations like group by, sum, avg
   - [ ] Unverified methods and events
   - [ ] Cross-chain address monitoring
+  - [ ] More custom functions:
+    - [ ] `is_contract(addr)`
+  - [ ] Custom templates:
+    - [ ] `uniswapv2`
+    - [ ] `uniswapv3`
+    - [ ] `compound`
+    - [ ] `aave`
+    - [ ] `makerdao`
+
+  - [ ] Refactor
 
 ## Later
 - [ ] **v1.2.0-beta**

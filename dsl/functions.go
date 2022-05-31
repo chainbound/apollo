@@ -4,6 +4,8 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/chainbound/apollo/types"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 	"github.com/zclconf/go-cty/cty/function/stdlib"
@@ -57,36 +59,40 @@ var FormatDate = function.New(&function.Spec{
 	},
 })
 
-// var Balance = function.New(&function.Spec{
-// 	Params: []function.Parameter{
-// 		{Name: "format", Type: cty.String},
-// 		{Name: "date", Type: cty.String},
-// 	},
-// 	Type: function.StaticReturnType(cty.Number),
-// 	Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
-// 		address := args[0].AsString()
-// 		b, err := chainservice.Balance(common.HexToAddress(address))
-// 		if err != nil {
-// 			return err
-// 		}
+func BuildBalanceFunctions(provider ChainFunctionProvider, chain types.Chain, block *big.Int) map[string]function.Function {
+	return map[string]function.Function{
+		"balance": function.New(&function.Spec{
+			Params: []function.Parameter{
+				{Name: "address", Type: cty.String},
+			},
+			Type: function.StaticReturnType(cty.Number),
+			Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+				address := args[0].AsString()
+				b, err := provider.Balance(chain, common.HexToAddress(address), block)
+				if err != nil {
+					return cty.NilVal, err
+				}
 
-// 		return cty.NumberIntVal(1000), nil
-// 	},
-// })
+				return cty.NumberFloatVal(b), nil
+			},
+		}),
 
-// var TokenBalance = function.New(&function.Spec{
-// 	Params: []function.Parameter{
-// 		{Name: "format", Type: cty.String},
-// 		{Name: "date", Type: cty.String},
-// 	},
-// 	Type: function.StaticReturnType(cty.Number),
-// 	Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
-// 		address := args[0].AsString()
-// 		b, err := chainservice.TokenBalance(common.HexToAddress(address))
-// 		if err != nil {
-// 			return err
-// 		}
+		"token_balance": function.New(&function.Spec{
+			Params: []function.Parameter{
+				{Name: "address", Type: cty.String},
+				{Name: "token", Type: cty.String},
+			},
+			Type: function.StaticReturnType(cty.Number),
+			Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+				address := args[0].AsString()
+				token := args[1].AsString()
+				b, err := provider.TokenBalance(chain, common.HexToAddress(address), common.HexToAddress(token), block)
+				if err != nil {
+					return cty.NilVal, err
+				}
 
-// 		return cty.NumberIntVal(1000), nil
-// 	},
-// })
+				return cty.NumberFloatVal(b), nil
+			},
+		}),
+	}
+}
