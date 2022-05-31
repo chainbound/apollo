@@ -26,78 +26,6 @@ var (
 	ErrIntervalDefinedForHistoricalEvents = errors.New("interval defined for historical events")
 )
 
-// var schemaSpec = hcldec.ObjectSpec{
-// 	"start_time": &hcldec.AttrSpec{
-// 		Name: "start_time",
-// 		Type: cty.Number,
-// 	},
-// 	"end_time": &hcldec.AttrSpec{
-// 		Name: "end_time",
-// 		Type: cty.Number,
-// 	},
-// 	"start_block": &hcldec.AttrSpec{
-// 		Name: "start_block",
-// 		Type: cty.Number,
-// 	},
-// 	"end_block": &hcldec.AttrSpec{
-// 		Name: "end_block",
-// 		Type: cty.Number,
-// 	},
-// 	"interval": &hcldec.AttrSpec{
-// 		Name: "interval",
-// 		Type: cty.Number,
-// 	},
-// 	"time_interval": &hcldec.AttrSpec{
-// 		Name: "time_interval",
-// 		Type: cty.Number,
-// 	},
-// 	"variables": &hcldec.BlockAttrsSpec{
-// 		TypeName:    "variables",
-// 		ElementType: cty.String,
-// 	},
-// 	"queries": &hcldec.BlockMapSpec{
-// 		TypeName:   "query",
-// 		LabelNames: []string{"name"},
-// 		Nested: hcldec.ObjectSpec{
-// 			"chain": &hcldec.AttrSpec{
-// 				Name:     "chain",
-// 				Type:     cty.String,
-// 				Required: true,
-// 			},
-// 			// If there is a template, evaluation context
-// 			// will be loaded based on the template
-// 			"template": &hcldec.AttrSpec{
-// 				Name: "template",
-// 				Type: cty.String,
-// 			},
-// 			"contract": &hcldec.BlockMapSpec{
-// 				TypeName:   "contract",
-// 				LabelNames: []string{"address"},
-// 				Nested: &hcldec.ObjectSpec{
-// 					"inputs": &hcldec.AttrSpec{
-// 						Name: "inputs",
-// 						Type: cty.Map(cty.String),
-// 					},
-// 					"outputs": &hcldec.AttrSpec{
-// 						Name: "outputs",
-// 						Type: cty.List(cty.String),
-// 					},
-// 					"block_offset": &hcldec.AttrSpec{
-// 						Name: "block_offset",
-// 						Type: cty.Number,
-// 					},
-// 				},
-// 			},
-// 		},
-// 	},
-// 	"filter": &hcldec.AttrSpec{
-// 		Name: "filter",
-// 		Type: cty.List(cty.Bool),
-// 	},
-
-// 	"save": hcldec.UnknownBody{},
-// }
-
 type DynamicSchema struct {
 	StartTime    int64                `hcl:"start_time,optional"`
 	EndTime      int64                `hcl:"end_time,optional"`
@@ -114,21 +42,6 @@ type DynamicSchema struct {
 
 	EvalContext *hcl.EvalContext
 }
-
-// EvalVariables loads the variables into the top-level evaluation context.
-// func (s *DynamicSchema) EvalVariables() {
-// 	for k, v := range s.Variables {
-// 		s.EvalContext.Variables[k] = v
-// 	}
-// }
-
-// func (s *DynamicSchema) InjectVariables() {
-// 	for k, v := range s.Variables {
-// 		for _, query := range s.Queries {
-// 			query.EvalContext.Variables[k] = v
-// 		}
-// 	}
-// }
 
 type Loop struct {
 	Items []cty.Value `hcl:"items"`
@@ -150,10 +63,6 @@ type Query struct {
 
 	EvalContext *hcl.EvalContext
 }
-
-// type Filter struct {
-// 	Options hcl.Body `hcl:",remain"`
-// }
 
 // EvalTransforms evaluates the transformation block per contract / top-level method.
 // The identifier is the OutputName of the method or the name of the contract in other
@@ -198,11 +107,6 @@ func (q *Query) EvalTransforms(tp types.ResultType, identifier string) error {
 	}
 
 	return nil
-}
-
-var FilterSpec = hcldec.AttrSpec{
-	Name: "filter",
-	Type: cty.List(cty.Bool),
 }
 
 func (s *DynamicSchema) EvalFilter(queryName string) (bool, error) {
@@ -341,7 +245,7 @@ func (q Query) HasContractMethods() (hasContractMethods bool) {
 }
 
 type Contract struct {
-	Address_ string `hcl:"address,label"`
+	Address_ string `hcl:"address"`
 	AbiPath  string `hcl:"abi"`
 
 	Methods []*Method `hcl:"method,block"`
@@ -469,7 +373,6 @@ func NewSchema(confDir string) (*DynamicSchema, error) {
 	// the loop variables in the evaluation context, and save the queries.
 	if topLevel.Loop != nil {
 		for _, item := range topLevel.Loop.Items {
-			fmt.Println(item.GoString())
 			var loopLevel struct {
 				Queries []*Query `hcl:"query,block"`
 			}

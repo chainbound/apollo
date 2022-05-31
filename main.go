@@ -174,8 +174,6 @@ func Run(opts types.ApolloOpts) error {
 			continue
 		}
 
-		// fmt.Printf("MAIN: \n%+v\n", res.Outputs)
-
 		save, err := schema.EvalSave(res.Type, res.QueryName, res.Identifier, dsl.GenerateContextVars(res))
 		if err != nil {
 			return fmt.Errorf("evaluating save block: %w", err)

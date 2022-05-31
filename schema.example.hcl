@@ -11,7 +11,8 @@ query usdc_eth_swaps {
   // Each query can have a different chain
   chain = "arbitrum"
 
-  contract "0x905dfCD5649217c42684f23958568e533C711Aa3" {
+  contract {
+    address = "0x905dfCD5649217c42684f23958568e533C711Aa3"
     abi = "unipair.abi.json"
     // Listen for events
     event Swap {

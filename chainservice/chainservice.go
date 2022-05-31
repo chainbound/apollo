@@ -70,25 +70,28 @@ func (c *ChainService) Start(ctx context.Context, schema *dsl.DynamicSchema, opt
 		startBlock := schema.StartBlock
 		endBlock := schema.EndBlock
 		interval := schema.Interval
-		// TODO: start block should be calculated per chain, maybe on
-		if schema.StartBlock == 0 && schema.StartTime != 0 {
-			startBlock, err = c.BlockByTimestamp(ctx, query.Chain, schema.StartTime)
-			if err != nil {
-				return err
-			}
-		}
 
-		if schema.EndBlock == 0 && schema.EndTime != 0 {
-			endBlock, err = c.BlockByTimestamp(ctx, query.Chain, schema.EndTime)
-			if err != nil {
-				return err
+		// If we're running in realtime mode we don't need all this
+		if !opts.Realtime {
+			if schema.StartBlock == 0 && schema.StartTime != 0 {
+				startBlock, err = c.BlockByTimestamp(ctx, query.Chain, schema.StartTime)
+				if err != nil {
+					return err
+				}
 			}
-		}
 
-		if schema.Interval == 0 && schema.TimeInterval != 0 {
-			interval, err = c.SecondsToBlockInterval(ctx, query.Chain, schema.TimeInterval)
-			if err != nil {
-				return err
+			if schema.EndBlock == 0 && schema.EndTime != 0 {
+				endBlock, err = c.BlockByTimestamp(ctx, query.Chain, schema.EndTime)
+				if err != nil {
+					return err
+				}
+			}
+
+			if schema.Interval == 0 && schema.TimeInterval != 0 {
+				interval, err = c.SecondsToBlockInterval(ctx, query.Chain, schema.TimeInterval)
+				if err != nil {
+					return err
+				}
 			}
 		}
 

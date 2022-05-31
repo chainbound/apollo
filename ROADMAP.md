@@ -32,7 +32,7 @@
   - [ ] Schema validation
   - [x] ETH + ARBI node deployment
   - [ ] Major update of Docs
-  - [ ] Add loops
+  - [x] Add loops
       ```hcl
 
         loop {

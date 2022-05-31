@@ -15,6 +15,8 @@ var Functions = map[string]function.Function{
 	"abs":            stdlib.AbsoluteFunc,
 	"parse_decimals": ParseDecimals,
 	"format_date":    FormatDate,
+	// "balance":        Balance,
+	// "token_balance":  TokenBalance,
 }
 
 var ParseDecimals = function.New(&function.Spec{
@@ -54,3 +56,37 @@ var FormatDate = function.New(&function.Spec{
 		return cty.NumberIntVal(t.UnixMilli() / 1000), nil
 	},
 })
+
+// var Balance = function.New(&function.Spec{
+// 	Params: []function.Parameter{
+// 		{Name: "format", Type: cty.String},
+// 		{Name: "date", Type: cty.String},
+// 	},
+// 	Type: function.StaticReturnType(cty.Number),
+// 	Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+// 		address := args[0].AsString()
+// 		b, err := chainservice.Balance(common.HexToAddress(address))
+// 		if err != nil {
+// 			return err
+// 		}
+
+// 		return cty.NumberIntVal(1000), nil
+// 	},
+// })
+
+// var TokenBalance = function.New(&function.Spec{
+// 	Params: []function.Parameter{
+// 		{Name: "format", Type: cty.String},
+// 		{Name: "date", Type: cty.String},
+// 	},
+// 	Type: function.StaticReturnType(cty.Number),
+// 	Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+// 		address := args[0].AsString()
+// 		b, err := chainservice.TokenBalance(common.HexToAddress(address))
+// 		if err != nil {
+// 			return err
+// 		}
+
+// 		return cty.NumberIntVal(1000), nil
+// 	},
+// })

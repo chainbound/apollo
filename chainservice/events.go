@@ -443,12 +443,10 @@ func (c ChainService) ListenForGlobalEvents(query *dsl.Query, res chan<- apolloT
 // HandleLog unpacks the raw log.Data into our desired output, and it requests the timestamp over the network.
 func (c ChainService) HandleLog(log types.Log, chain apolloTypes.Chain, queryName string, abi abi.ABI, event *dsl.Event, indexedEvents map[string]int) (*apolloTypes.CallResult, error) {
 	if len(log.Data) == 0 {
-		fmt.Println("log.Data == 0")
 		return nil, nil
 	}
 
 	if len(indexedEvents) > len(log.Topics) {
-		fmt.Println("too many indexed events")
 		return nil, nil
 	}
 
