@@ -85,6 +85,7 @@ func (c ChainService) FilterEvents(query *dsl.Query, fromBlock, toBlock *big.Int
 					})
 
 					if err != nil {
+						c.logger.Debug().Str("chain", string(query.Chain)).Err(err).Msg("getting logs from node")
 						res <- apolloTypes.CallResult{
 							Err: fmt.Errorf("getting logs from node: %w", err),
 						}
@@ -142,8 +143,6 @@ func (c ChainService) FilterEvents(query *dsl.Query, fromBlock, toBlock *big.Int
 			r.QueryName = query.Name
 			out <- r
 		}
-
-		close(out)
 	}()
 }
 
@@ -208,6 +207,7 @@ func (c ChainService) FilterGlobalEvents(query *dsl.Query, fromBlock, toBlock *b
 			})
 
 			if err != nil {
+				c.logger.Debug().Str("chain", string(query.Chain)).Err(err).Msg("getting logs from node")
 				res <- apolloTypes.CallResult{
 					Err: fmt.Errorf("getting logs from node: %w", err),
 				}
@@ -263,7 +263,6 @@ func (c ChainService) FilterGlobalEvents(query *dsl.Query, fromBlock, toBlock *b
 	}
 
 	wg.Wait()
-	close(res)
 }
 
 func (c ChainService) ListenForEvents(query *dsl.Query, out chan<- apolloTypes.CallResult) {

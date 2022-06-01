@@ -58,7 +58,7 @@ func (b *BlockDater) BlockNumberByTimestamp(ctx context.Context, timestamp int64
 		return 0, err
 	}
 
-	target, err := b.FindTargetBlock(ctx, predicted, timestamp, 60*3)
+	target, err := b.FindTargetBlock(ctx, predicted, timestamp, 60)
 	if err != nil {
 		return 0, err
 	}

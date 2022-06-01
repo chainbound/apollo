@@ -6,12 +6,12 @@ import (
 	"sync"
 
 	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
 type MetricsClient struct {
-	mu     sync.Mutex
 	client *ethclient.Client
 	// rateLimiter            ratelimit.Limiter
 	contractCallRequests   uint64
@@ -19,21 +19,41 @@ type MetricsClient struct {
 	subscribeRequests      uint64
 	filterRequests         uint64
 
+	mu          sync.Mutex
 	headerCache map[int64]*types.Header
+
+	decimalMu    sync.Mutex
+	decimalCache map[common.Address][]byte
 }
 
 func NewRateLimitedClient(client *ethclient.Client) *MetricsClient {
 	return &MetricsClient{
-		client:      client,
-		headerCache: make(map[int64]*types.Header),
+		client:       client,
+		headerCache:  make(map[int64]*types.Header),
+		decimalCache: make(map[common.Address][]byte),
 	}
 }
 
 func (c *MetricsClient) CallContract(ctx context.Context, msg ethereum.CallMsg, blockNumber *big.Int) ([]byte, error) {
-	c.contractCallRequests++
-	// c.rateLimiter.Take()
+	if data, ok := c.decimalCache[*msg.To]; ok {
+		return data, nil
+	}
 
-	return c.client.CallContract(ctx, msg, blockNumber)
+	c.contractCallRequests++
+
+	data, err := c.client.CallContract(ctx, msg, blockNumber)
+	if err != nil {
+		return nil, err
+	}
+
+	// If decimals is called, we want to cache it
+	if common.Bytes2Hex(msg.Data) == "313ce567" {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		c.decimalCache[*msg.To] = data
+	}
+
+	return data, nil
 }
 
 func (c *MetricsClient) HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error) {
@@ -42,7 +62,6 @@ func (c *MetricsClient) HeaderByNumber(ctx context.Context, number *big.Int) (*t
 	}
 
 	c.headerByNumberRequests++
-	// c.rateLimiter.Take()
 
 	header, err := c.client.HeaderByNumber(ctx, number)
 	if err != nil {

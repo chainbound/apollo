@@ -47,9 +47,10 @@
     - [x] `token_balance()`
   - [x] Add more context variables: `tx_index`, `block_hash`
   - [ ] Major update of Documentation
-    - [ ] Standalone domain
+    - [x] Standalone domain
     - [ ] Advanced features
-    - [ ] More schema examples
+      - custom functions
+    - [x] More schema examples
   - [ ] Refactor + error handling and reliability
 
 - [ ] **v1.1.0-beta**

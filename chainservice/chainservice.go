@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"sync"
 	"time"
 
 	"github.com/chainbound/apollo/bindings/erc20"
@@ -65,6 +66,7 @@ type EvaluationResult struct {
 
 func (c *ChainService) Start(ctx context.Context, schema *dsl.DynamicSchema, opts apolloTypes.ApolloOpts, out chan<- apolloTypes.CallResult) error {
 	blocks := make(chan *big.Int)
+	var wg sync.WaitGroup
 
 	c.logger.Info().Msgf("running with %d queries", len(schema.Queries))
 	for _, query := range schema.Queries {
@@ -127,9 +129,18 @@ func (c *ChainService) Start(ctx context.Context, schema *dsl.DynamicSchema, opt
 			// GLOBAL EVENTS
 			case query.HasGlobalEvents():
 				if opts.Realtime {
-					go c.ListenForGlobalEvents(query, out)
+					wg.Add(1)
+					go func() {
+						defer wg.Done()
+						c.ListenForGlobalEvents(query, out)
+					}()
 				} else {
-					go c.FilterGlobalEvents(query, big.NewInt(startBlock), big.NewInt(endBlock), out)
+					wg.Add(1)
+					go func() {
+						defer wg.Done()
+						c.FilterGlobalEvents(query, big.NewInt(startBlock), big.NewInt(endBlock), out)
+
+					}()
 				}
 
 			// CONTRACT EVENTS
@@ -143,6 +154,8 @@ func (c *ChainService) Start(ctx context.Context, schema *dsl.DynamicSchema, opt
 		}(query)
 	}
 
+	wg.Wait()
+	close(out)
 	return nil
 }
 
