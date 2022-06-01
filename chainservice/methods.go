@@ -86,9 +86,9 @@ func (c ChainService) CallMethod(chain apolloTypes.Chain, address common.Address
 	start := time.Now()
 	inputs := make(map[string]any)
 	outputs := make(map[string]any)
-	rlClient := c.rlClients[chain]
+	rlClient := c.clients[chain]
 
-	rlClient.rateLimiter.Take()
+	c.rateLimiter.Take()
 
 	// If there are no methods on the contract, return
 	ctx, cancel := context.WithTimeout(context.Background(), c.defaultTimeout)

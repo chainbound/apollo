@@ -24,7 +24,7 @@ func (c ChainService) FilterEvents(query *dsl.Query, fromBlock, toBlock *big.Int
 		toBlock = nil
 	}
 
-	rlClient := c.rlClients[query.Chain]
+	rlClient := c.clients[query.Chain]
 
 	go func() {
 		for _, cs := range query.Contracts {
@@ -150,7 +150,7 @@ func (c ChainService) FilterEvents(query *dsl.Query, fromBlock, toBlock *big.Int
 func (c ChainService) FilterGlobalEvents(query *dsl.Query, fromBlock, toBlock *big.Int, res chan<- apolloTypes.CallResult) {
 	var wg sync.WaitGroup
 
-	rlClient := c.rlClients[query.Chain]
+	rlClient := c.clients[query.Chain]
 
 	for _, event := range query.Events {
 		c.logger.Debug().
@@ -269,7 +269,7 @@ func (c ChainService) FilterGlobalEvents(query *dsl.Query, fromBlock, toBlock *b
 func (c ChainService) ListenForEvents(query *dsl.Query, out chan<- apolloTypes.CallResult) {
 	res := make(chan apolloTypes.CallResult)
 	logChan := make(chan types.Log)
-	rlClient := c.rlClients[query.Chain]
+	rlClient := c.clients[query.Chain]
 
 	go func() {
 		for _, cs := range query.Contracts {
@@ -369,7 +369,7 @@ func (c ChainService) ListenForEvents(query *dsl.Query, out chan<- apolloTypes.C
 
 func (c ChainService) ListenForGlobalEvents(query *dsl.Query, res chan<- apolloTypes.CallResult) {
 	logChan := make(chan types.Log)
-	rlClient := c.rlClients[query.Chain]
+	rlClient := c.clients[query.Chain]
 
 	for _, event := range query.Events {
 		// Get first topic in Bytes (to filter events)
@@ -462,8 +462,8 @@ func (c ChainService) HandleLog(log types.Log, chain apolloTypes.Chain, queryNam
 		return nil, nil
 	}
 
-	rlClient := c.rlClients[chain]
-	rlClient.rateLimiter.Take()
+	rlClient := c.clients[chain]
+	c.rateLimiter.Take()
 
 	ctx, cancel := context.WithTimeout(context.Background(), c.defaultTimeout)
 	defer cancel()

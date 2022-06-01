@@ -22,8 +22,9 @@ import (
 type ChainService struct {
 	logger zerolog.Logger
 
-	rlClients   map[apolloTypes.Chain]*RateLimitedClient
+	clients     map[apolloTypes.Chain]*MetricsClient
 	blockDaters map[apolloTypes.Chain]BlockDater
+	rateLimiter ratelimit.Limiter
 
 	rpcs map[apolloTypes.Chain]string
 
@@ -36,8 +37,9 @@ func NewChainService(defaultTimeout time.Duration, requestsPerSecond int, rpcs m
 		defaultTimeout:    defaultTimeout,
 		requestsPerSecond: requestsPerSecond,
 		rpcs:              rpcs,
-		rlClients:         make(map[apolloTypes.Chain]*RateLimitedClient),
+		clients:           make(map[apolloTypes.Chain]*MetricsClient),
 		blockDaters:       make(map[apolloTypes.Chain]BlockDater),
+		rateLimiter:       ratelimit.New(requestsPerSecond),
 		logger:            log.NewLogger("chainservice"),
 	}
 }
@@ -50,7 +52,7 @@ func (c *ChainService) Connect(ctx context.Context, chain apolloTypes.Chain) (*C
 
 	c.logger.Debug().Str("rpc", c.rpcs[chain]).Msg("connected to rpc")
 
-	c.rlClients[chain] = NewRateLimitedClient(client, ratelimit.New(c.requestsPerSecond))
+	c.clients[chain] = NewRateLimitedClient(client)
 	c.blockDaters[chain] = NewBlockDater(client)
 	return c, nil
 }
@@ -171,7 +173,7 @@ func (c ChainService) SecondsToBlockInterval(ctx context.Context, chain apolloTy
 func (c ChainService) Balance(chain apolloTypes.Chain, address common.Address, block *big.Int) (float64, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	rawInt, err := c.rlClients[chain].client.BalanceAt(ctx, address, block)
+	rawInt, err := c.clients[chain].client.BalanceAt(ctx, address, block)
 	if err != nil {
 		return 0, err
 	}
@@ -189,7 +191,7 @@ func (c ChainService) TokenBalance(chain apolloTypes.Chain, address, tokenAddres
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	client := c.rlClients[chain].client
+	client := c.clients[chain].client
 
 	tokenCaller, err := erc20.NewErc20Caller(tokenAddress, client)
 	if err != nil {
@@ -218,7 +220,7 @@ func (c ChainService) TokenBalance(chain apolloTypes.Chain, address, tokenAddres
 }
 
 func (c ChainService) DumpMetrics() {
-	for chain, client := range c.rlClients {
+	for chain, client := range c.clients {
 		c.logger.Info().Str("chain", string(chain)).Msgf("contract_calls: %d requests", client.contractCallRequests)
 		c.logger.Info().Str("chain", string(chain)).Msgf("header_by_number: %d requests", client.headerByNumberRequests)
 		c.logger.Info().Str("chain", string(chain)).Msgf("subscribe_logs: %d requests", client.subscribeRequests)
