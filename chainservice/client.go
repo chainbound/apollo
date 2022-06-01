@@ -48,8 +48,8 @@ func (c *MetricsClient) CallContract(ctx context.Context, msg ethereum.CallMsg, 
 
 	// If decimals is called, we want to cache it
 	if common.Bytes2Hex(msg.Data) == "313ce567" {
-		c.mu.Lock()
-		defer c.mu.Unlock()
+		c.decimalMu.Lock()
+		defer c.decimalMu.Unlock()
 		c.decimalCache[*msg.To] = data
 	}
 
