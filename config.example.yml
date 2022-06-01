@@ -1,0 +1,17 @@
+# config.yml
+
+# RPCs to use. Websockets required for realtime mode.
+rpc:
+  ethereum: http://cloudflare-eth.com/v1/mainnet
+  avax: wss://api.avax.network/ext/bc/C/ws
+  arbitrum: https://arb1.arbitrum.io/rpc
+  optimism: wss://ws-mainnet.optimism.io
+  polygon: wss://rpc-mainnet.matic.network
+  fantom: wss://wsapi.fantom.network
+
+# Postgres DB connection settings
+postgres:
+  host: 172.17.0.2
+  user: chainreader
+  password: chainreader
+  name: postgres

@@ -20,7 +20,7 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-//go:embed config.yml
+//go:embed config.example.yml
 var cfg []byte
 
 //go:embed schema.example.hcl
