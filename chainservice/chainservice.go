@@ -125,17 +125,17 @@ func (c *ChainService) Start(ctx context.Context, schema *dsl.DynamicSchema, opt
 			// GLOBAL EVENTS
 			case query.HasGlobalEvents():
 				if opts.Realtime {
-					c.ListenForGlobalEvents(query, out)
+					go c.ListenForGlobalEvents(query, out)
 				} else {
-					c.FilterGlobalEvents(query, big.NewInt(startBlock), big.NewInt(endBlock), out)
+					go c.FilterGlobalEvents(query, big.NewInt(startBlock), big.NewInt(endBlock), out)
 				}
 
 			// CONTRACT EVENTS
 			case query.HasContractEvents():
 				if opts.Realtime {
-					c.ListenForEvents(query, out)
+					go c.ListenForEvents(query, out)
 				} else {
-					c.FilterEvents(query, big.NewInt(startBlock), big.NewInt(endBlock), out)
+					go c.FilterEvents(query, big.NewInt(startBlock), big.NewInt(endBlock), out)
 				}
 			}
 		}(query)

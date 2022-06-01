@@ -83,9 +83,12 @@ func (c *ChainService) RunMethodCaller(query *dsl.Query, realtime bool, blocks <
 
 // CallMethod executes all the methods on the contract, and aggregates their results into a CallResult
 func (c ChainService) CallMethod(chain apolloTypes.Chain, address common.Address, abi abi.ABI, method *dsl.Method, blockNumber *big.Int) (*apolloTypes.CallResult, error) {
+	start := time.Now()
 	inputs := make(map[string]any)
 	outputs := make(map[string]any)
 	rlClient := c.rlClients[chain]
+
+	rlClient.rateLimiter.Take()
 
 	// If there are no methods on the contract, return
 	ctx, cancel := context.WithTimeout(context.Background(), c.defaultTimeout)
@@ -95,13 +98,13 @@ func (c ChainService) CallMethod(chain apolloTypes.Chain, address common.Address
 	if err != nil {
 		return nil, fmt.Errorf("building call message: %w", err)
 	}
-	c.logger.Trace().Str("to", msg.To.String()).Str("input", common.Bytes2Hex(msg.Data)).Msg("built call message")
+	c.logger.Trace().Str("to", msg.To.String()).Str("input", common.Bytes2Hex(msg.Data)).Str("method", method.Name()).Msg("built call message")
 
 	raw, err := rlClient.CallContract(ctx, msg, blockNumber)
 	if err != nil {
 		return nil, fmt.Errorf("calling contract method: %w", err)
 	}
-	c.logger.Trace().Str("to", msg.To.String()).Str("method", method.Name()).Str("block_number", blockNumber.String()).Msg("called method")
+	c.logger.Trace().Str("to", msg.To.String()).Str("method", method.Name()).Str("block_number", blockNumber.String()).Str("time", time.Since(start).String()).Msg("called method")
 
 	// We only want the correct value here (specified in the schema)
 	results, err := abi.Unpack(method.Name(), raw)

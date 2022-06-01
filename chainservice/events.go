@@ -105,9 +105,13 @@ func (c ChainService) FilterEvents(query *dsl.Query, fromBlock, toBlock *big.Int
 								return
 							}
 
+							if result == nil {
+								return
+							}
+
 							results := []*apolloTypes.CallResult{result}
 							for _, method := range event.Methods {
-								c.logger.Trace().Int64("block_offset", method.BlockOffset).Msg("calling method at event")
+								c.logger.Trace().Int64("block_offset", method.BlockOffset).Str("chain", string(query.Chain)).Msg("calling method at event")
 								callResult, err := c.CallMethod(query.Chain, cs.Address(), cs.Abi, method, big.NewInt(int64(log.BlockNumber)+method.BlockOffset))
 								if err != nil {
 									res <- apolloTypes.CallResult{
@@ -230,9 +234,13 @@ func (c ChainService) FilterGlobalEvents(query *dsl.Query, fromBlock, toBlock *b
 						return
 					}
 
+					if result == nil {
+						return
+					}
+
 					results := []*apolloTypes.CallResult{result}
 					for _, method := range event.Methods {
-						c.logger.Trace().Int64("block_offset", method.BlockOffset).Msg("calling method at event")
+						c.logger.Trace().Int64("block_offset", method.BlockOffset).Str("chain", string(query.Chain)).Msg("calling method at event")
 						callResult, err := c.CallMethod(query.Chain, log.Address, event.Abi, method, big.NewInt(int64(log.BlockNumber)+method.BlockOffset))
 						if err != nil {
 							res <- apolloTypes.CallResult{
@@ -417,6 +425,10 @@ func (c ChainService) ListenForGlobalEvents(query *dsl.Query, res chan<- apolloT
 					return
 				}
 
+				if result == nil {
+					return
+				}
+
 				results := []*apolloTypes.CallResult{result}
 				for _, method := range event.Methods {
 					c.logger.Trace().Int64("block_offset", method.BlockOffset).Msg("calling method at event")
@@ -450,11 +462,19 @@ func (c ChainService) HandleLog(log types.Log, chain apolloTypes.Chain, queryNam
 		return nil, nil
 	}
 
-	c.logger.Trace().Str("event", event.Name_).Msg("handling log")
+	rlClient := c.rlClients[chain]
+	rlClient.rateLimiter.Take()
+
 	ctx, cancel := context.WithTimeout(context.Background(), c.defaultTimeout)
 	defer cancel()
 
-	rlClient := c.rlClients[chain]
+	h, err := rlClient.HeaderByNumber(ctx, big.NewInt(int64(log.BlockNumber)))
+	if err != nil {
+		return nil, fmt.Errorf("getting block header: %w", err)
+	}
+
+	c.logger.Trace().Str("event", event.Name_).Msg("handling log")
+
 	outputs := make(map[string]any, len(event.Outputs_))
 
 	for _, event := range event.Outputs_ {
@@ -474,13 +494,6 @@ func (c ChainService) HandleLog(log types.Log, chain apolloTypes.Chain, queryNam
 
 	for k, v := range tmp {
 		outputs[k] = v
-	}
-
-	h, err := rlClient.HeaderByNumber(ctx, big.NewInt(int64(log.BlockNumber)))
-	if err != nil {
-		if err != nil {
-			return nil, fmt.Errorf("getting block header: %w", err)
-		}
 	}
 
 	return &apolloTypes.CallResult{

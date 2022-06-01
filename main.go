@@ -133,7 +133,7 @@ func Run(opts types.ApolloOpts) error {
 		}
 	}
 
-	defaultTimeout := time.Second * 60
+	defaultTimeout := time.Second * 10
 
 	// Long timeout
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
@@ -169,7 +169,6 @@ func Run(opts types.ApolloOpts) error {
 
 	for res := range chainResults {
 		if res.Err != nil {
-
 			logger.Warn().Str("chain", string(res.Chain)).Msg(res.Err.Error())
 			continue
 		}
