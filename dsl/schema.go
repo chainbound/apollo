@@ -164,7 +164,7 @@ func (s *DynamicSchema) EvalSave(provider ChainFunctionProvider, res types.CallR
 				q.EvalContext.Variables[k] = v
 			}
 
-			for k, v := range BuildBalanceFunctions(provider, res.Chain, big.NewInt(int64(res.BlockNumber))) {
+			for k, v := range BuildChainFunctions(provider, res.Chain, big.NewInt(int64(res.BlockNumber))) {
 				q.EvalContext.Functions[k] = v
 			}
 

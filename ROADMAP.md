@@ -29,7 +29,6 @@
       - This only works for results that happen at the same time, i.e. method calls
   - [x] Variables
   - [ ] Schema validation
-  - [x] ETH + ARBI node deployment
   - [x] Add loops
       ```hcl
 
@@ -81,7 +80,6 @@
 ## Later
 - [ ] **v1.2.0-beta**
   - [ ] Transaction simulation at certain times / events
-  - [ ] Look into Apache Spark and SQL for collecting data
   - [ ] Python library
   - [ ] JavaScript / TypeScript library
 

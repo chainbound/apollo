@@ -59,7 +59,7 @@ var FormatDate = function.New(&function.Spec{
 	},
 })
 
-func BuildBalanceFunctions(provider ChainFunctionProvider, chain types.Chain, block *big.Int) map[string]function.Function {
+func BuildChainFunctions(provider ChainFunctionProvider, chain types.Chain, block *big.Int) map[string]function.Function {
 	return map[string]function.Function{
 		"balance": function.New(&function.Spec{
 			Params: []function.Parameter{
