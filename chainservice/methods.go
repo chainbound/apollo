@@ -20,11 +20,15 @@ import (
 func (c *ChainService) RunMethodCaller(query *dsl.Query, realtime bool, blocks <-chan *big.Int, out chan<- apolloTypes.CallResult) {
 	res := make(chan apolloTypes.CallResult)
 	var wg sync.WaitGroup
+	var wg1 sync.WaitGroup
 
+	wg1.Add(1)
 	go func() {
+		defer wg1.Done()
 		// For every incoming blockNumber, loop over contract methods and start a goroutine for each method.
 		// This way, every eth_call will happen concurrently.
 		for blockNumber := range blocks {
+			c.logger.Trace().Str("block", blockNumber.String()).Msg("new block")
 			wg.Add(1)
 			go func(blockNumber *big.Int) {
 				defer wg.Done()
@@ -77,8 +81,9 @@ func (c *ChainService) RunMethodCaller(query *dsl.Query, realtime bool, blocks <
 
 			out <- r
 		}
-		close(out)
 	}()
+
+	wg1.Wait()
 }
 
 // CallMethod executes all the methods on the contract, and aggregates their results into a CallResult

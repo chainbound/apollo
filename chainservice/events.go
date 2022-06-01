@@ -17,7 +17,6 @@ import (
 )
 
 func (c ChainService) FilterEvents(query *dsl.Query, fromBlock, toBlock *big.Int, out chan<- apolloTypes.CallResult) {
-	res := make(chan apolloTypes.CallResult)
 	var wg sync.WaitGroup
 
 	if toBlock.Cmp(big.NewInt(0)) == 0 {
@@ -26,124 +25,119 @@ func (c ChainService) FilterEvents(query *dsl.Query, fromBlock, toBlock *big.Int
 
 	rlClient := c.clients[query.Chain]
 
-	go func() {
-		for _, cs := range query.Contracts {
-			for _, event := range cs.Events {
-				c.logger.Debug().Str("contract", cs.Address().String()).
-					Str("event", event.Name()).Str("from_block", fromBlock.String()).
-					Str("to_block", toBlock.String()).Msg("filtering contract events")
+	// go func() {
+	for _, cs := range query.Contracts {
+		for _, event := range cs.Events {
+			c.logger.Debug().Str("contract", cs.Address().String()).
+				Str("event", event.Name()).Str("from_block", fromBlock.String()).
+				Str("to_block", toBlock.String()).Msg("filtering contract events")
 
-				// Get first topic in Bytes (to filter events)
-				topic, err := generate.GetTopic(event.Name(), cs.Abi)
+			// Get first topic in Bytes (to filter events)
+			topic, err := generate.GetTopic(event.Name(), cs.Abi)
+			if err != nil {
+				out <- apolloTypes.CallResult{
+					Err: fmt.Errorf("generating topic id: %w", err),
+				}
+				return
+			}
+
+			indexedEvents := make(map[string]int)
+			abiEvent := cs.Abi.Events[event.Name()]
+
+			// Collect the indexes for the events that are "indexed" (they appear in the "topics" of the log)
+			for i, arg := range abiEvent.Inputs {
+				if arg.Indexed {
+					for _, o := range event.Outputs() {
+						if arg.Name == o {
+							// First index is always the main topic
+							indexedEvents[arg.Name] = i + 1
+						}
+					}
+				}
+			}
+
+			// NOTE: eth_getLogs allows for unlimited returned logs as long as the block range is <= 2000,
+			// but at a block range of 2000, we're going to need a lot of requests. For now we can try to run
+			// it with this hardcoded value, but we might need to read it from a config / implement a retry pattern.
+			blockRange := int64(16384)
+			if query.Chain == apolloTypes.ETHEREUM {
+				blockRange = int64(128)
+			}
+
+			blockDiff := toBlock.Int64() - fromBlock.Int64()
+			if blockDiff < blockRange {
+				blockRange = blockDiff
+			}
+
+			for i := fromBlock.Int64(); i < toBlock.Int64(); i += blockRange {
+				ctx, cancel := context.WithTimeout(context.Background(), c.defaultTimeout)
+				defer cancel()
+
+				start, end := big.NewInt(i), big.NewInt(i+blockRange-1)
+				logs, err := rlClient.FilterLogs(ctx, ethereum.FilterQuery{
+					FromBlock: start,
+					ToBlock:   end,
+					Addresses: []common.Address{cs.Address()},
+					Topics: [][]common.Hash{
+						{topic},
+					},
+				})
+
 				if err != nil {
-					res <- apolloTypes.CallResult{
-						Err: fmt.Errorf("generating topic id: %w", err),
+					c.logger.Debug().Str("chain", string(query.Chain)).Err(err).Msg("getting logs from node")
+					out <- apolloTypes.CallResult{
+						Err: fmt.Errorf("getting logs from node: %w", err),
 					}
 					return
 				}
 
-				indexedEvents := make(map[string]int)
-				abiEvent := cs.Abi.Events[event.Name()]
+				c.logger.Trace().Str("start_block", start.String()).Str("end_block", end.String()).Int("n_logs", len(logs)).Msg("filtered logs")
 
-				// Collect the indexes for the events that are "indexed" (they appear in the "topics" of the log)
-				for i, arg := range abiEvent.Inputs {
-					if arg.Indexed {
-						for _, o := range event.Outputs() {
-							if arg.Name == o {
-								// First index is always the main topic
-								indexedEvents[arg.Name] = i + 1
+				for _, log := range logs {
+					wg.Add(1)
+					go func(log types.Log) {
+						defer wg.Done()
+						result, err := c.HandleLog(log, query.Chain, cs.Address().String(), cs.Abi, event, indexedEvents)
+						if err != nil {
+							out <- apolloTypes.CallResult{
+								Err: fmt.Errorf("handling log: %w", err),
 							}
+							return
 						}
-					}
-				}
 
-				// NOTE: eth_getLogs allows for unlimited returned logs as long as the block range is <= 2000,
-				// but at a block range of 2000, we're going to need a lot of requests. For now we can try to run
-				// it with this hardcoded value, but we might need to read it from a config / implement a retry pattern.
-				blockRange := int64(4096)
-				if query.Chain == apolloTypes.ETHEREUM {
-					blockRange = int64(1024)
-				}
-
-				blockDiff := toBlock.Int64() - fromBlock.Int64()
-				if blockDiff < blockRange {
-					blockRange = blockDiff
-				}
-
-				for i := fromBlock.Int64(); i < toBlock.Int64(); i += blockRange {
-					ctx, cancel := context.WithTimeout(context.Background(), c.defaultTimeout)
-					defer cancel()
-
-					start, end := big.NewInt(i), big.NewInt(i+blockRange-1)
-					logs, err := rlClient.FilterLogs(ctx, ethereum.FilterQuery{
-						FromBlock: start,
-						ToBlock:   end,
-						Addresses: []common.Address{cs.Address()},
-						Topics: [][]common.Hash{
-							{topic},
-						},
-					})
-
-					if err != nil {
-						c.logger.Debug().Str("chain", string(query.Chain)).Err(err).Msg("getting logs from node")
-						res <- apolloTypes.CallResult{
-							Err: fmt.Errorf("getting logs from node: %w", err),
+						if result == nil {
+							return
 						}
-						return
-					}
 
-					c.logger.Trace().Str("start_block", start.String()).Str("end_block", end.String()).Int("n_logs", len(logs)).Msg("filtered logs")
-
-					for _, log := range logs {
-						wg.Add(1)
-						go func(log types.Log) {
-							defer wg.Done()
-							result, err := c.HandleLog(log, query.Chain, cs.Address().String(), cs.Abi, event, indexedEvents)
+						results := []*apolloTypes.CallResult{result}
+						for _, method := range event.Methods {
+							c.logger.Trace().Int64("block_offset", method.BlockOffset).Str("chain", string(query.Chain)).Msg("calling method at event")
+							callResult, err := c.CallMethod(query.Chain, cs.Address(), cs.Abi, method, big.NewInt(int64(log.BlockNumber)+method.BlockOffset))
 							if err != nil {
-								res <- apolloTypes.CallResult{
-									Err: fmt.Errorf("handling log: %w", err),
+								out <- apolloTypes.CallResult{
+									Err: fmt.Errorf("calling method on event: %w", err),
 								}
 								return
 							}
 
-							if result == nil {
-								return
-							}
+							results = append(results, callResult)
+						}
 
-							results := []*apolloTypes.CallResult{result}
-							for _, method := range event.Methods {
-								c.logger.Trace().Int64("block_offset", method.BlockOffset).Str("chain", string(query.Chain)).Msg("calling method at event")
-								callResult, err := c.CallMethod(query.Chain, cs.Address(), cs.Abi, method, big.NewInt(int64(log.BlockNumber)+method.BlockOffset))
-								if err != nil {
-									res <- apolloTypes.CallResult{
-										Err: fmt.Errorf("calling method on event: %w", err),
-									}
-									return
-								}
+						callResult := aggregateCallResults(results...)
+						callResult.Type = apolloTypes.Event
+						callResult.QueryName = query.Name
 
-								results = append(results, callResult)
-							}
-
-							res <- *aggregateCallResults(results...)
-						}(log)
-					}
+						out <- *callResult
+					}(log)
 				}
 			}
 		}
+	}
+	// }()
 
-		c.logger.Debug().Msg("waiting for goroutines to finish")
-		wg.Wait()
-
-		close(res)
-	}()
-
-	// If we called more than one method, we want to aggregate the results
-	go func() {
-		for r := range res {
-			r.QueryName = query.Name
-			out <- r
-		}
-	}()
+	c.logger.Debug().Msg("waiting for goroutines to finish")
+	wg.Wait()
+	c.logger.Debug().Msg("finished")
 }
 
 func (c ChainService) FilterGlobalEvents(query *dsl.Query, fromBlock, toBlock *big.Int, res chan<- apolloTypes.CallResult) {
@@ -183,7 +177,7 @@ func (c ChainService) FilterGlobalEvents(query *dsl.Query, fromBlock, toBlock *b
 		// NOTE: eth_getLogs allows for unlimited returned logs as long as the block range is <= 2000,
 		// but at a block range of 2000, we're going to need a lot of requests. For now we can try to run
 		// it with this hardcoded value, but we might need to read it from a config / implement a retry pattern.
-		blockRange := int64(4096)
+		blockRange := int64(16384)
 		if query.Chain == apolloTypes.ETHEREUM {
 			blockRange = int64(128)
 		}

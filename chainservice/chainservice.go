@@ -102,11 +102,18 @@ func (c *ChainService) Start(ctx context.Context, schema *dsl.DynamicSchema, opt
 			}
 		}
 
+		wg.Add(1)
 		go func(query *dsl.Query) {
+			defer wg.Done()
 			switch {
 			// CONTRACT METHODS
 			case query.HasContractMethods():
-				c.RunMethodCaller(query, opts.Realtime, blocks, out)
+				c.logger.Debug().Msg("contract methods")
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					c.RunMethodCaller(query, opts.Realtime, blocks, out)
+				}()
 
 				// Start main program loop
 				if opts.Realtime {
@@ -128,6 +135,7 @@ func (c *ChainService) Start(ctx context.Context, schema *dsl.DynamicSchema, opt
 
 			// GLOBAL EVENTS
 			case query.HasGlobalEvents():
+				c.logger.Debug().Msg("global events")
 				if opts.Realtime {
 					wg.Add(1)
 					go func() {
@@ -139,16 +147,24 @@ func (c *ChainService) Start(ctx context.Context, schema *dsl.DynamicSchema, opt
 					go func() {
 						defer wg.Done()
 						c.FilterGlobalEvents(query, big.NewInt(startBlock), big.NewInt(endBlock), out)
-
 					}()
 				}
 
 			// CONTRACT EVENTS
 			case query.HasContractEvents():
+				c.logger.Debug().Msg("contract events")
 				if opts.Realtime {
-					go c.ListenForEvents(query, out)
+					wg.Add(1)
+					go func() {
+						defer wg.Done()
+						c.ListenForEvents(query, out)
+					}()
 				} else {
-					go c.FilterEvents(query, big.NewInt(startBlock), big.NewInt(endBlock), out)
+					wg.Add(1)
+					go func() {
+						defer wg.Done()
+						c.FilterEvents(query, big.NewInt(startBlock), big.NewInt(endBlock), out)
+					}()
 				}
 			}
 		}(query)
