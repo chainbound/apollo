@@ -19,13 +19,13 @@ type CachedClient struct {
 	subscribeRequests      uint64
 	filterRequests         uint64
 
-	// mu          sync.Mutex
+	// lruCaches are thread safe
 	headerCache *lru.Cache
 
 	decimalCache *lru.Cache
 }
 
-func NewRateLimitedClient(client *ethclient.Client) *CachedClient {
+func NewCachedClient(client *ethclient.Client) *CachedClient {
 	hc, _ := lru.New(4096)
 	dc, _ := lru.New(4096)
 	return &CachedClient{

@@ -52,7 +52,7 @@ func (c *ChainService) Connect(ctx context.Context, chain apolloTypes.Chain) (*C
 
 	c.logger.Debug().Str("rpc", c.rpcs[chain]).Msg("connected to rpc")
 
-	c.clients[chain] = NewRateLimitedClient(client)
+	c.clients[chain] = NewCachedClient(client)
 	c.blockDaters[chain] = NewBlockDater(client)
 	return c, nil
 }
