@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math/big"
-	"sync"
 	"time"
 
 	"github.com/chainbound/apollo/bindings/erc20"
@@ -23,7 +22,7 @@ import (
 type ChainService struct {
 	logger zerolog.Logger
 
-	clients     map[apolloTypes.Chain]*MetricsClient
+	clients     map[apolloTypes.Chain]*CachedClient
 	blockDaters map[apolloTypes.Chain]BlockDater
 	rateLimiter ratelimit.Limiter
 
@@ -38,7 +37,7 @@ func NewChainService(defaultTimeout time.Duration, requestsPerSecond int, rpcs m
 		defaultTimeout:    defaultTimeout,
 		requestsPerSecond: requestsPerSecond,
 		rpcs:              rpcs,
-		clients:           make(map[apolloTypes.Chain]*MetricsClient),
+		clients:           make(map[apolloTypes.Chain]*CachedClient),
 		blockDaters:       make(map[apolloTypes.Chain]BlockDater),
 		rateLimiter:       ratelimit.New(requestsPerSecond),
 		logger:            log.NewLogger("chainservice"),
@@ -65,114 +64,138 @@ type EvaluationResult struct {
 }
 
 func (c *ChainService) Start(ctx context.Context, schema *dsl.DynamicSchema, opts apolloTypes.ApolloOpts, out chan<- apolloTypes.CallResult) error {
-	blocks := make(chan *big.Int)
-	var wg sync.WaitGroup
+	queryChannels := make(map[string]chan apolloTypes.CallResult, len(schema.Queries))
 
 	c.logger.Info().Msgf("running with %d queries", len(schema.Queries))
-	for _, query := range schema.Queries {
-		if _, err := c.Connect(ctx, query.Chain); err != nil {
-			return err
+	for i, query := range schema.Queries {
+		// Change query name into something that is guaranteed to be unique
+		// If we already have a client for this chain, don't create a new one
+		if _, ok := c.clients[query.Chain]; !ok {
+			if _, err := c.Connect(ctx, query.Chain); err != nil {
+				return err
+			}
 		}
 
-		startBlock := schema.StartBlock
-		endBlock := schema.EndBlock
-		interval := schema.Interval
+		query.StartBlock = schema.StartBlock
+		query.EndBlock = schema.EndBlock
+		query.BlockInterval = schema.BlockInterval
 
 		// If we're running in realtime mode we don't need all this
 		if !opts.Realtime {
+			// Fill in start, end and interval blocks per query, since these can differ
 			if schema.StartBlock == 0 && schema.StartTime != 0 {
-				startBlock, err = c.BlockByTimestamp(ctx, query.Chain, schema.StartTime)
+				query.StartBlock, err = c.BlockByTimestamp(ctx, query.Chain, schema.StartTime)
 				if err != nil {
 					return err
 				}
 			}
 
 			if schema.EndBlock == 0 && schema.EndTime != 0 {
-				endBlock, err = c.BlockByTimestamp(ctx, query.Chain, schema.EndTime)
+				query.EndBlock, err = c.BlockByTimestamp(ctx, query.Chain, schema.EndTime)
 				if err != nil {
 					return err
 				}
 			}
 
-			if schema.Interval == 0 && schema.TimeInterval != 0 {
-				interval, err = c.SecondsToBlockInterval(ctx, query.Chain, schema.TimeInterval)
+			if schema.BlockInterval == 0 && schema.TimeInterval != 0 {
+				query.BlockInterval, err = c.SecondsToBlockInterval(ctx, query.Chain, schema.TimeInterval)
 				if err != nil {
 					return err
 				}
 			}
 		}
 
-		wg.Add(1)
-		go func(query *dsl.Query) {
-			defer wg.Done()
-			switch {
-			// CONTRACT METHODS
-			case query.HasContractMethods():
-				c.logger.Debug().Msg("contract methods")
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					c.RunMethodCaller(query, opts.Realtime, blocks, out)
-				}()
-
-				// Start main program loop
-				if opts.Realtime {
-					go func() {
-						for {
-							blocks <- nil
-							time.Sleep(time.Duration(schema.Interval) * time.Second)
-						}
-					}()
-				} else {
-					go func() {
-						for i := startBlock; i < endBlock; i += interval {
-							blocks <- big.NewInt(i)
-						}
-
-						close(blocks)
-					}()
-				}
-
-			// GLOBAL EVENTS
-			case query.HasGlobalEvents():
-				c.logger.Debug().Msg("global events")
-				if opts.Realtime {
-					wg.Add(1)
-					go func() {
-						defer wg.Done()
-						c.ListenForGlobalEvents(query, out)
-					}()
-				} else {
-					wg.Add(1)
-					go func() {
-						defer wg.Done()
-						c.FilterGlobalEvents(query, big.NewInt(startBlock), big.NewInt(endBlock), out)
-					}()
-				}
-
-			// CONTRACT EVENTS
-			case query.HasContractEvents():
-				c.logger.Debug().Msg("contract events")
-				if opts.Realtime {
-					wg.Add(1)
-					go func() {
-						defer wg.Done()
-						c.ListenForEvents(query, out)
-					}()
-				} else {
-					wg.Add(1)
-					go func() {
-						defer wg.Done()
-						c.FilterEvents(query, big.NewInt(startBlock), big.NewInt(endBlock), out)
-					}()
-				}
-			}
-		}(query)
+		queryKey := fmt.Sprintf("%d-%s", i, query.Name)
+		ch := c.HandleQuery(query, opts)
+		// Problem, can't just use query.Name here since these are not always unique,
+		// in a loop for example. We need the loop variable to
+		queryChannels[queryKey] = ch
 	}
 
-	wg.Wait()
+	// Keep looping until all query channels are expired
+	for len(queryChannels) > 0 {
+		for query, ch := range queryChannels {
+			select {
+			case msg, ok := <-ch:
+				// If there are no more messages, remove this query channel and proceed
+				if !ok {
+					c.logger.Debug().Str("query", query).Msg("query completed")
+					delete(queryChannels, query)
+					continue
+				}
+
+				// msg.QueryName = strings.Split(msg.QueryName, "-")[1]
+				// fmt.Printf("%+v\n", msg)
+				out <- msg
+			default:
+				continue
+			}
+		}
+	}
+
 	close(out)
+
 	return nil
+}
+
+// HandleQuery is a non-blocking function that handles an individual query. It returns a channel
+// on which the results are sent.
+func (c ChainService) HandleQuery(query *dsl.Query, opts apolloTypes.ApolloOpts) chan apolloTypes.CallResult {
+	blocks := make(chan *big.Int)
+	out := make(chan apolloTypes.CallResult)
+	c.logger.Debug().Str("query", query.Name).Msg("starting query")
+
+	switch {
+	// CONTRACT METHODS
+	case query.HasContractMethods():
+		go c.RunMethodCaller(query, opts.Realtime, blocks, out)
+
+		// Start main program loop
+		if opts.Realtime {
+			go func() {
+				for {
+					blocks <- nil
+					time.Sleep(time.Duration(query.BlockInterval) * time.Second)
+				}
+			}()
+		} else {
+			c.logger.Debug().Str("query", query.Name).Msg("running in historical mode")
+			go func() {
+				for i := query.StartBlock; i < query.EndBlock; i += query.BlockInterval {
+					blocks <- big.NewInt(i)
+				}
+				close(blocks)
+			}()
+		}
+
+	// GLOBAL EVENTS
+	case query.HasGlobalEvents():
+		c.logger.Debug().Msg("global events")
+		if opts.Realtime {
+			go func() {
+				c.ListenForGlobalEvents(query, out)
+			}()
+		} else {
+			go func() {
+				c.FilterGlobalEvents(query, big.NewInt(query.StartBlock), big.NewInt(query.EndBlock), out)
+			}()
+		}
+
+	// CONTRACT EVENTS
+	case query.HasContractEvents():
+		c.logger.Debug().Msg("contract events")
+		if opts.Realtime {
+			go func() {
+				c.ListenForEvents(query, out)
+			}()
+		} else {
+			go func() {
+				c.FilterEvents(query, big.NewInt(query.StartBlock), big.NewInt(query.EndBlock), out)
+			}()
+		}
+	}
+
+	return out
 }
 
 func (c ChainService) BlockByTimestamp(ctx context.Context, chain apolloTypes.Chain, timestamp int64) (int64, error) {

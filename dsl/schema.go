@@ -28,13 +28,13 @@ var (
 )
 
 type DynamicSchema struct {
-	StartTime    int64                `hcl:"start_time,optional"`
-	EndTime      int64                `hcl:"end_time,optional"`
-	TimeInterval int64                `hcl:"time_interval,optional"`
-	StartBlock   int64                `hcl:"start_block,optional"`
-	EndBlock     int64                `hcl:"end_block,optional"`
-	Interval     int64                `hcl:"interval,optional"`
-	Variables    map[string]cty.Value `hcl:"variables,optional"`
+	StartTime     int64                `hcl:"start_time,optional"`
+	EndTime       int64                `hcl:"end_time,optional"`
+	TimeInterval  int64                `hcl:"time_interval,optional"`
+	StartBlock    int64                `hcl:"start_block,optional"`
+	EndBlock      int64                `hcl:"end_block,optional"`
+	BlockInterval int64                `hcl:"block_interval,optional"`
+	Variables     map[string]cty.Value `hcl:"variables,optional"`
 
 	// Represents the to-be-decoded queries / loops
 	SchemaConfig hcl.Body `hcl:",remain"`
@@ -61,6 +61,12 @@ type Query struct {
 	Events  []*Event `hcl:"event,block"`
 	Filters hcl.Body `hcl:"filter,remain"`
 	Saves   Save     `hcl:"save,block"`
+
+	// Every query can have its own block intervals,
+	// since it can run on different chains.
+	StartBlock    int64
+	EndBlock      int64
+	BlockInterval int64
 
 	EvalContext *hcl.EvalContext
 }
@@ -203,13 +209,13 @@ func (s DynamicSchema) Validate(opts types.ApolloOpts) error {
 
 	if hasMethods {
 		if opts.Realtime {
-			if s.Interval == 0 && s.TimeInterval == 0 {
+			if s.BlockInterval == 0 && s.TimeInterval == 0 {
 				return ErrNoIntervalRealtime
 			}
 		}
 
 		if (s.StartBlock != 0 && s.EndBlock != 0) || (s.StartTime != 0 && s.EndTime != 0) {
-			if s.Interval == 0 && s.TimeInterval == 0 {
+			if s.BlockInterval == 0 && s.TimeInterval == 0 {
 				return ErrNoIntervalHistorical
 			}
 		}
@@ -217,7 +223,7 @@ func (s DynamicSchema) Validate(opts types.ApolloOpts) error {
 
 	if hasEvents {
 		if !opts.Realtime {
-			if s.Interval != 0 {
+			if s.BlockInterval != 0 {
 				return ErrIntervalDefinedForHistoricalEvents
 			}
 
@@ -272,6 +278,7 @@ func (c Contract) Address() common.Address {
 }
 
 type Method struct {
+	Address     *string           `hcl:"address"`
 	BlockOffset int64             `hcl:"block_offset,optional"`
 	Name_       string            `hcl:"name,label"`
 	Inputs_     map[string]string `hcl:"inputs,optional"`
