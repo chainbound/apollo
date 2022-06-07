@@ -36,8 +36,10 @@ func NewCachedClient(client *ethclient.Client) *CachedClient {
 }
 
 func (c *CachedClient) CallContract(ctx context.Context, msg ethereum.CallMsg, blockNumber *big.Int) ([]byte, error) {
-	if data, ok := c.decimalCache.Get(*msg.To); ok {
-		return data.([]byte), nil
+	if common.Bytes2Hex(msg.Data) == "313ce567" {
+		if data, ok := c.decimalCache.Get(*msg.To); ok {
+			return data.([]byte), nil
+		}
 	}
 
 	c.contractCallRequests++
@@ -56,8 +58,10 @@ func (c *CachedClient) CallContract(ctx context.Context, msg ethereum.CallMsg, b
 }
 
 func (c *CachedClient) HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error) {
-	if header, ok := c.headerCache.Get(number.Int64()); ok {
-		return header.(*types.Header), nil
+	if number != nil {
+		if header, ok := c.headerCache.Get(number.Int64()); ok {
+			return header.(*types.Header), nil
+		}
 	}
 
 	c.headerByNumberRequests++
@@ -67,7 +71,7 @@ func (c *CachedClient) HeaderByNumber(ctx context.Context, number *big.Int) (*ty
 		return nil, err
 	}
 
-	c.headerCache.Add(number.Int64(), header)
+	c.headerCache.Add(header.Number.Int64(), header)
 
 	return header, nil
 }

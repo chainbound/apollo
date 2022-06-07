@@ -154,6 +154,7 @@ func (s *DynamicSchema) EvalFilter(queryName string) (bool, error) {
 type ChainFunctionProvider interface {
 	Balance(types.Chain, common.Address, *big.Int) (float64, error)
 	TokenBalance(types.Chain, common.Address, common.Address, *big.Int) (float64, error)
+	// Price(types.Chain, common.Address, common.Address, *big.Int) (float64, error)
 }
 
 // EvalSave updates the evaluation context, evaluates the transform blocks and then

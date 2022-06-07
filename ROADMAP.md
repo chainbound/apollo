@@ -45,10 +45,11 @@
   - [x] Custom helper functions
     - [x] `balance()`
     - [x] `token_balance()`
+    - [ ] `token_price_usd(token)`
   - [x] Add more context variables: `tx_index`, `block_hash`
-  - [ ] Major update of Documentation
+  - [x] Major update of Documentation
     - [x] Standalone domain
-    - [ ] Advanced features
+    - [x] Advanced features
       - custom functions
     - [x] More schema examples
   - [ ] Refactor + error handling and reliability

@@ -48,6 +48,7 @@ query uniswapv3_stats {
     // functions and variables are provided by the template
     n_positions = total_positions
     usdc_weth_value = position_value(usdc_weth)
+    // price = uniswapv3.get_price(udsc)
   }
 }
 

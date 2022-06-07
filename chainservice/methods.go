@@ -89,7 +89,8 @@ func (c ChainService) CallMethod(chain apolloTypes.Chain, address common.Address
 
 	raw, err := rlClient.CallContract(ctx, msg, blockNumber)
 	if err != nil {
-		return nil, fmt.Errorf("calling contract method: %w", err)
+		c.logger.Debug().Str("method", method.Name()).Str("to", address.String()).Msgf("calling contract method (%s): %s", method.Name(), err)
+		return nil, fmt.Errorf("calling contract method (%s): %w", method.Name(), err)
 	}
 	c.logger.Trace().Str("to", msg.To.String()).Str("method", method.Name()).Str("block_number", blockNumber.String()).Msg("called method")
 

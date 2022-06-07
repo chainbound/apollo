@@ -135,12 +135,11 @@ func (c ChainService) FilterEvents(query *dsl.Query, fromBlock, toBlock *big.Int
 	}
 	// }()
 
-	c.logger.Debug().Msg("waiting for goroutines to finish")
 	wg.Wait()
-	c.logger.Debug().Msg("finished")
+	close(out)
 }
 
-func (c ChainService) FilterGlobalEvents(query *dsl.Query, fromBlock, toBlock *big.Int, res chan<- apolloTypes.CallResult) {
+func (c ChainService) FilterGlobalEvents(query *dsl.Query, fromBlock, toBlock *big.Int, out chan<- apolloTypes.CallResult) {
 	var wg sync.WaitGroup
 
 	rlClient := c.clients[query.Chain]
@@ -153,7 +152,7 @@ func (c ChainService) FilterGlobalEvents(query *dsl.Query, fromBlock, toBlock *b
 		// Get first topic in Bytes (to filter events)
 		topic, err := generate.GetTopic(event.Name(), event.Abi)
 		if err != nil {
-			res <- apolloTypes.CallResult{
+			out <- apolloTypes.CallResult{
 				Err: fmt.Errorf("generating topic id: %w", err),
 			}
 			return
@@ -202,7 +201,7 @@ func (c ChainService) FilterGlobalEvents(query *dsl.Query, fromBlock, toBlock *b
 
 			if err != nil {
 				c.logger.Debug().Str("chain", string(query.Chain)).Err(err).Msg("getting logs from node")
-				res <- apolloTypes.CallResult{
+				out <- apolloTypes.CallResult{
 					Err: fmt.Errorf("getting logs from node: %w", err),
 				}
 				return
@@ -222,7 +221,7 @@ func (c ChainService) FilterGlobalEvents(query *dsl.Query, fromBlock, toBlock *b
 
 					result, err := c.HandleLog(log, query.Chain, event.OutputName(), event.Abi, event, indexedEvents)
 					if err != nil {
-						res <- apolloTypes.CallResult{
+						out <- apolloTypes.CallResult{
 							Err: fmt.Errorf("handling log: %w", err),
 						}
 						return
@@ -237,7 +236,7 @@ func (c ChainService) FilterGlobalEvents(query *dsl.Query, fromBlock, toBlock *b
 						c.logger.Trace().Int64("block_offset", method.BlockOffset).Str("chain", string(query.Chain)).Msg("calling method at event")
 						callResult, err := c.CallMethod(query.Chain, log.Address, event.Abi, method, big.NewInt(int64(log.BlockNumber)+method.BlockOffset))
 						if err != nil {
-							res <- apolloTypes.CallResult{
+							out <- apolloTypes.CallResult{
 								Err: fmt.Errorf("calling method on event: %w", err),
 							}
 							return
@@ -250,13 +249,14 @@ func (c ChainService) FilterGlobalEvents(query *dsl.Query, fromBlock, toBlock *b
 					callResult.Type = apolloTypes.GlobalEvent
 					callResult.QueryName = query.Name
 
-					res <- *callResult
+					out <- *callResult
 				}(log)
 			}
 		}
 	}
 
 	wg.Wait()
+	close(out)
 }
 
 func (c ChainService) ListenForEvents(query *dsl.Query, out chan<- apolloTypes.CallResult) {
@@ -478,6 +478,9 @@ func (c ChainService) HandleLog(log types.Log, chain apolloTypes.Chain, queryNam
 
 	tmp := make(map[string]any)
 	if len(outputs) < len(event.Outputs_) {
+		if len(log.Data) < 64 {
+			log.Data = common.LeftPadBytes(log.Data, 64)
+		}
 		err := abi.UnpackIntoMap(tmp, event.Name_, log.Data)
 		if err != nil {
 			c.logger.Debug().Str("chain", string(chain)).Str("tx_hash", log.TxHash.String()).Str("log.Data", common.Bytes2Hex(log.Data)).Msg("problem unpacking log.Data")

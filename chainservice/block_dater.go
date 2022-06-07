@@ -7,6 +7,9 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/chainbound/apollo/log"
+	"github.com/rs/zerolog"
+
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
@@ -20,6 +23,7 @@ type BlockDater struct {
 	client *ethclient.Client
 
 	blockCache map[int64]BlockWrapper
+	logger     zerolog.Logger
 
 	BlockTime float64
 	Latest    *BlockWrapper
@@ -30,6 +34,7 @@ func NewBlockDater(client *ethclient.Client) BlockDater {
 	return BlockDater{
 		client:     client,
 		blockCache: make(map[int64]BlockWrapper),
+		logger:     log.NewLogger("blockdater"),
 	}
 }
 
@@ -58,7 +63,7 @@ func (b *BlockDater) BlockNumberByTimestamp(ctx context.Context, timestamp int64
 		return 0, err
 	}
 
-	target, err := b.FindTargetBlock(ctx, predicted, timestamp, 60)
+	target, err := b.FindTargetBlock(ctx, predicted, timestamp, 600*60)
 	if err != nil {
 		return 0, err
 	}
@@ -141,6 +146,8 @@ func (b *BlockDater) GetBlock(ctx context.Context, num *big.Int) (BlockWrapper, 
 	}
 
 	b.blockCache[block.Number().Int64()] = wrapper
+
+	b.logger.Trace().Msgf("got new block: %v", wrapper)
 
 	return wrapper, nil
 }

@@ -17,8 +17,6 @@ var Functions = map[string]function.Function{
 	"abs":            stdlib.AbsoluteFunc,
 	"parse_decimals": ParseDecimals,
 	"format_date":    FormatDate,
-	// "balance":        Balance,
-	// "token_balance":  TokenBalance,
 }
 
 var ParseDecimals = function.New(&function.Spec{
@@ -94,5 +92,23 @@ func BuildChainFunctions(provider ChainFunctionProvider, chain types.Chain, bloc
 				return cty.NumberFloatVal(b), nil
 			},
 		}),
+
+		// "get_price": function.New(&function.Spec{
+		// 	Params: []function.Parameter{
+		// 		{Name: "from", Type: cty.String},
+		// 		{Name: "to", Type: cty.String},
+		// 	},
+		// 	Type: function.StaticReturnType(cty.Number),
+		// 	Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+		// 		from := args[0].AsString()
+		// 		to := args[1].AsString()
+		// 		b, err := provider.Price(chain, common.HexToAddress(from), common.HexToAddress(to), block)
+		// 		if err != nil {
+		// 			return cty.NilVal, err
+		// 		}
+
+		// 		return cty.NumberFloatVal(b), nil
+		// 	},
+		// }),
 	}
 }
