@@ -133,11 +133,7 @@ func Run(opts types.ApolloOpts) error {
 		}
 	}
 
-	defaultTimeout := time.Second * 10
-
-	// Long timeout
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
-	defer cancel()
+	defaultTimeout := time.Second * 30
 
 	service := chainservice.NewChainService(defaultTimeout, opts.RateLimit, cfg.Rpc)
 
@@ -157,6 +153,10 @@ func Run(opts types.ApolloOpts) error {
 
 	// First check if there are any methods to be called, it might just be events
 	chainResults := make(chan types.CallResult)
+
+	// Long timeout
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
 
 	go func() error {
 		err := service.Start(ctx, schema, opts, chainResults)
