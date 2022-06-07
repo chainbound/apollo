@@ -38,6 +38,8 @@ func NewBlockDater(client *ethclient.Client) BlockDater {
 	}
 }
 
+// BlockNumberByTimestamp returns the first block it finds that is under 60 seconds
+// difference with the target timestamp.
 func (b *BlockDater) BlockNumberByTimestamp(ctx context.Context, timestamp int64) (int64, error) {
 	ts := time.Unix(timestamp, 0)
 
@@ -63,7 +65,7 @@ func (b *BlockDater) BlockNumberByTimestamp(ctx context.Context, timestamp int64
 		return 0, err
 	}
 
-	target, err := b.FindTargetBlock(ctx, predicted, timestamp, 600*60)
+	target, err := b.FindTargetBlock(ctx, predicted, timestamp, 60)
 	if err != nil {
 		return 0, err
 	}
