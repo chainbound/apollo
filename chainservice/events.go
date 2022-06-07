@@ -173,85 +173,62 @@ func (c ChainService) FilterGlobalEvents(query *dsl.Query, fromBlock, toBlock *b
 			}
 		}
 
-		// NOTE: eth_getLogs allows for unlimited returned logs as long as the block range is <= 2000,
-		// but at a block range of 2000, we're going to need a lot of requests. For now we can try to run
-		// it with this hardcoded value, but we might need to read it from a config / implement a retry pattern.
-		blockRange := int64(16384)
-		if query.Chain == apolloTypes.ETHEREUM {
-			blockRange = int64(128)
-		}
+		ctx, cancel := context.WithTimeout(context.Background(), c.defaultTimeout)
+		defer cancel()
 
-		blockDiff := toBlock.Int64() - fromBlock.Int64()
-		if blockDiff < blockRange {
-			blockRange = blockDiff
-		}
-
-		for i := fromBlock.Int64(); i < toBlock.Int64(); i += blockRange {
-			ctx, cancel := context.WithTimeout(context.Background(), c.defaultTimeout)
-			defer cancel()
-
-			start, end := big.NewInt(i), big.NewInt(i+blockRange-1)
-			logs, err := rlClient.FilterLogs(ctx, ethereum.FilterQuery{
-				FromBlock: start,
-				ToBlock:   end,
-				Topics: [][]common.Hash{
-					{topic},
-				},
-			})
-
-			if err != nil {
-				c.logger.Debug().Str("chain", string(query.Chain)).Err(err).Msg("getting logs from node")
-				out <- apolloTypes.CallResult{
-					Err: fmt.Errorf("getting logs from node: %w", err),
-				}
-				return
+		logs, err := rlClient.SmartFilterLogs(ctx, [][]common.Hash{{topic}}, fromBlock, toBlock)
+		if err != nil {
+			c.logger.Debug().Str("chain", string(query.Chain)).Err(err).Msg("getting logs from node")
+			out <- apolloTypes.CallResult{
+				Err: fmt.Errorf("getting logs from node: %w", err),
 			}
+			return
+		}
 
-			c.logger.Trace().Str("start_block", start.String()).Str("end_block", end.String()).Int("n_logs", len(logs)).Msg("filtered logs")
+		c.logger.Trace().Str("start_block", fromBlock.String()).Str("end_block", toBlock.String()).Int("n_logs", len(logs)).Msg("filtered logs")
 
-			for _, log := range logs {
-				wg.Add(1)
-				go func(log types.Log) {
-					defer wg.Done()
+		for _, log := range logs {
+			wg.Add(1)
+			go func(log types.Log) {
+				defer wg.Done()
 
-					// If len(log.Data) == 0, we have the wrong log
-					if len(log.Data) == 0 {
-						return
+				// If len(log.Data) == 0, we have the wrong log
+				if len(log.Data) == 0 {
+					return
+				}
+
+				result, err := c.HandleLog(log, query.Chain, event.OutputName(), event.Abi, event, indexedEvents)
+				if err != nil {
+					out <- apolloTypes.CallResult{
+						Err: fmt.Errorf("handling log: %w", err),
 					}
+					return
+				}
 
-					result, err := c.HandleLog(log, query.Chain, event.OutputName(), event.Abi, event, indexedEvents)
+				if result == nil {
+					return
+				}
+
+				results := []*apolloTypes.CallResult{result}
+				for _, method := range event.Methods {
+					c.logger.Trace().Int64("block_offset", method.BlockOffset).Str("chain", string(query.Chain)).Msg("calling method at event")
+					callResult, err := c.CallMethod(query.Chain, log.Address, event.Abi, method, big.NewInt(int64(log.BlockNumber)+method.BlockOffset))
 					if err != nil {
 						out <- apolloTypes.CallResult{
-							Err: fmt.Errorf("handling log: %w", err),
+							Err: fmt.Errorf("calling method on event: %w", err),
 						}
 						return
 					}
 
-					if result == nil {
-						return
-					}
+					results = append(results, callResult)
+				}
 
-					results := []*apolloTypes.CallResult{result}
-					for _, method := range event.Methods {
-						c.logger.Trace().Int64("block_offset", method.BlockOffset).Str("chain", string(query.Chain)).Msg("calling method at event")
-						callResult, err := c.CallMethod(query.Chain, log.Address, event.Abi, method, big.NewInt(int64(log.BlockNumber)+method.BlockOffset))
-						if err != nil {
-							out <- apolloTypes.CallResult{
-								Err: fmt.Errorf("calling method on event: %w", err),
-							}
-							return
-						}
+				callResult := aggregateCallResults(results...)
+				callResult.Type = apolloTypes.GlobalEvent
+				callResult.QueryName = query.Name
 
-						results = append(results, callResult)
-					}
-
-					callResult := aggregateCallResults(results...)
-					callResult.Type = apolloTypes.GlobalEvent
-					callResult.QueryName = query.Name
-
-					out <- *callResult
-				}(log)
-			}
+				out <- *callResult
+			}(log)
 		}
 	}
 

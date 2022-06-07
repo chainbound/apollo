@@ -2,7 +2,9 @@ package chainservice
 
 import (
 	"context"
+	"fmt"
 	"math/big"
+	"sync"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -86,4 +88,60 @@ func (c *CachedClient) FilterLogs(ctx context.Context, query ethereum.FilterQuer
 	c.filterRequests++
 
 	return c.client.FilterLogs(ctx, query)
+}
+
+// SmartFilterLogs splits up the range in equally large parts. It will concurrently try to get all the logs for the parts,
+// but if one fails because the response was too large, it will split them up in smaller parts and do the same thing.
+func (c *CachedClient) SmartFilterLogs(ctx context.Context, topics [][]common.Hash, fromBlock, toBlock *big.Int) ([]types.Log, error) {
+	var wg sync.WaitGroup
+
+	parts := int64(30)
+	from := fromBlock.Int64()
+	to := toBlock.Int64()
+	chunk := (to - from) / parts
+
+	errChan := make(chan error)
+	done := make(chan bool)
+
+	var logs []types.Log
+
+	for i := from; i < to; i += chunk {
+		// Don't go over the end
+		if i+chunk > to {
+			chunk = to - i
+		}
+
+		fmt.Println("from", i, "to", i+chunk)
+
+		wg.Add(1)
+		go func(i int64, chunk int64) {
+			defer wg.Done()
+			res, err := c.FilterLogs(ctx, ethereum.FilterQuery{
+				Topics:    topics,
+				FromBlock: big.NewInt(i),
+				ToBlock:   big.NewInt(i + chunk),
+			})
+
+			if err != nil {
+				errChan <- err
+			}
+
+			fmt.Println(len(res))
+
+			logs = append(logs, res...)
+		}(i, chunk)
+	}
+
+	go func() {
+		wg.Wait()
+		done <- true
+	}()
+
+	select {
+	case err := <-errChan:
+		return nil, err
+	case <-done:
+		fmt.Println("DONE")
+		return logs, nil
+	}
 }
