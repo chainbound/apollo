@@ -35,6 +35,7 @@ func (c *ChainService) RunMethodCaller(query *dsl.Query, realtime bool, blocks <
 					wg2.Add(1)
 					go func(contract *dsl.Contract, method *dsl.Method) {
 						defer wg2.Done()
+						c.rateLimiter.Take()
 						result, err := c.CallMethod(query.Chain, contract.Address(), contract.Abi, method, blockNumber)
 						if err != nil {
 							out <- apolloTypes.CallResult{
@@ -74,8 +75,6 @@ func (c ChainService) CallMethod(chain apolloTypes.Chain, address common.Address
 	inputs := make(map[string]any)
 	outputs := make(map[string]any)
 	rlClient := c.clients[chain]
-
-	c.rateLimiter.Take()
 
 	// If there are no methods on the contract, return
 	ctx, cancel := context.WithTimeout(context.Background(), c.defaultTimeout)

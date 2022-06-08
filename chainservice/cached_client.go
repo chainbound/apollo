@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
-	"sync"
+	"time"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -35,8 +35,19 @@ func NewCachedClient(client *ethclient.Client) *CachedClient {
 	}
 }
 
+// PROBLEM: this key as a cache will only work when it's the same blocknumber AND to address
+// We want it to cache common static requests as well, like erc20 decimals, symbol, and name
+func genCallKey(msg ethereum.CallMsg, blockNumber *big.Int) string {
+	if common.Bytes2Hex(msg.Data) == "313ce567" {
+		return msg.To.String()
+	}
+
+	return msg.To.String() + string(msg.Data) + blockNumber.String()
+}
+
 func (c *CachedClient) CallContract(ctx context.Context, msg ethereum.CallMsg, blockNumber *big.Int) ([]byte, error) {
-	if data, ok := c.requestCache.Get(*msg.To); ok {
+	key := genCallKey(msg, blockNumber)
+	if data, ok := c.requestCache.Get(key); ok {
 		return data.([]byte), nil
 	}
 
@@ -48,7 +59,7 @@ func (c *CachedClient) CallContract(ctx context.Context, msg ethereum.CallMsg, b
 	}
 
 	// Cache the request
-	c.requestCache.Add(*msg.To, data)
+	c.requestCache.Add(key, data)
 
 	return data, nil
 }
@@ -87,29 +98,29 @@ func (c *CachedClient) FilterLogs(ctx context.Context, query ethereum.FilterQuer
 // SmartFilterLogs splits up the range in equally large parts. It will concurrently try to get all the logs for the parts,
 // but if one fails because the response was too large, it will split them up in smaller parts and do the same thing.
 func (c *CachedClient) SmartFilterLogs(ctx context.Context, topics [][]common.Hash, fromBlock, toBlock *big.Int) ([]types.Log, error) {
-	var wg sync.WaitGroup
-
-	parts := int64(30)
-	from := fromBlock.Int64()
-	to := toBlock.Int64()
-	chunk := (to - from) / parts
-
-	errChan := make(chan error)
-	done := make(chan bool)
-
 	var logs []types.Log
 
-	for i := from; i < to; i += chunk {
-		// Don't go over the end
-		if i+chunk > to {
-			chunk = to - i
-		}
+	parts := int64(100)
+	from := fromBlock.Int64()
+	to := toBlock.Int64()
 
-		fmt.Println("from", i, "to", i+chunk)
+	retry := func(parts int64) ([]types.Log, error) {
+		fmt.Println("retrying with parts", parts)
+		chunk := (to - from) / parts
+		for i := from; i < to; i += chunk {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+			defer cancel()
+			// Don't go over the end
+			if i+chunk > to {
+				chunk = to - i
+			}
 
-		wg.Add(1)
-		go func(i int64, chunk int64) {
-			defer wg.Done()
+			fmt.Println("from", i, "to", i+chunk)
+
+			// time.Sleep(time.Second * 5)
+			// wg.Add(1)
+			// go func(i int64, chunk int64) {
+			// 	defer wg.Done()
 			res, err := c.FilterLogs(ctx, ethereum.FilterQuery{
 				Topics:    topics,
 				FromBlock: big.NewInt(i),
@@ -117,25 +128,28 @@ func (c *CachedClient) SmartFilterLogs(ctx context.Context, topics [][]common.Ha
 			})
 
 			if err != nil {
-				errChan <- err
+				return nil, err
 			}
 
 			fmt.Println(len(res))
 
 			logs = append(logs, res...)
-		}(i, chunk)
+		}
+
+		return logs, nil
 	}
 
-	go func() {
-		wg.Wait()
-		done <- true
-	}()
+	// Keep looping until we get a result. That's the only time this loop will break,
+	// otherwise it will just keep retrying by increasing the parts.
+	for {
+		logs, err := retry(parts)
+		if err != nil {
+			fmt.Println(err)
+			parts *= 2
 
-	select {
-	case err := <-errChan:
-		return nil, err
-	case <-done:
-		fmt.Println("DONE")
+			continue
+		}
+
 		return logs, nil
 	}
 }
