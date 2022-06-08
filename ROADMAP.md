@@ -54,6 +54,9 @@
   - [x] Refactor + error handling and reliability
 
 - [ ] **v1.1.0-beta**
+  - [ ] Subcommand for getting ABIs from etherscan and the like
+  - [ ] Updated `BlockByTimestamp` algo
+  - [ ] Updated `SmartFilterLogs` algo
   - [ ] Transaction monitoring
       - You would be able to filter historical transactions based on certain predicates: value thresholds, sender and receiver addresses, gas prices and amounts, or certain method calls or inputs.
   - [ ] Mempool monitoring
