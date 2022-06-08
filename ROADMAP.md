@@ -1,7 +1,7 @@
 # Roadmap
 
 ## First release
-- [ ] **v1.0.1-alpha**
+- [x] **v1.0.1-alpha**
   - [x] Logging with log levels
   - [x] Improved stdout output
   - [x] Timestamps for setting start, end and interval options
@@ -28,7 +28,7 @@
   - [x] `save` block should be a top-level block so that we can do cross-contract operations
       - This only works for results that happen at the same time, i.e. method calls
   - [x] Variables
-  - [ ] Schema validation
+  - [x] Schema validation
   - [x] Add loops
       ```hcl
 
