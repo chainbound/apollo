@@ -1,7 +1,7 @@
 # Roadmap
 
 ## First release
-- [ ] **v1.0.1-beta**
+- [ ] **v1.0.1-alpha**
   - [x] Logging with log levels
   - [x] Improved stdout output
   - [x] Timestamps for setting start, end and interval options
@@ -53,7 +53,7 @@
     - [x] More schema examples
   - [x] Refactor + error handling and reliability
 
-- [ ] **v1.1.0-beta**
+- [ ] **v1.1.0-alpha**
   - [ ] Subcommand for getting ABIs from etherscan and the like
   - [ ] Updated `BlockByTimestamp` algo
   - [ ] Updated `SmartFilterLogs` algo
