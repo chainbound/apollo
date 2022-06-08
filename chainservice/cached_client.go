@@ -20,23 +20,29 @@ type CachedClient struct {
 	subscribeRequests      uint64
 	filterRequests         uint64
 
-	// We use a requestCache here for caching requests.
+	// We use a cache here for caching requests.
 	// This could save us a lot of calls for requests
 	// like erc20.decimals(), erc20.name(), or other
 	// immutable values.
-	requestCache *lru.Cache
+	cache       *lru.Cache
+	headerCache *lru.Cache
+	cacheHits   int64
 }
 
 func NewCachedClient(client *ethclient.Client) *CachedClient {
+	cache, _ := lru.New(8192)
 	hc, _ := lru.New(8192)
 	return &CachedClient{
-		client:       client,
-		requestCache: hc,
+		client:      client,
+		cache:       cache,
+		headerCache: hc,
 	}
 }
 
-// PROBLEM: this key as a cache will only work when it's the same blocknumber AND to address
-// We want it to cache common static requests as well, like erc20 decimals, symbol, and name
+// genCallKey will generate a unique key per contract call. If the call
+// returns an immutable value, like ERC20 metadata, the key will be the
+// contract address. Otherwise it will be a combination of contract
+// address, calldata and blocknumber.
 func genCallKey(msg ethereum.CallMsg, blockNumber *big.Int) string {
 	if common.Bytes2Hex(msg.Data) == "313ce567" {
 		return msg.To.String()
@@ -47,7 +53,8 @@ func genCallKey(msg ethereum.CallMsg, blockNumber *big.Int) string {
 
 func (c *CachedClient) CallContract(ctx context.Context, msg ethereum.CallMsg, blockNumber *big.Int) ([]byte, error) {
 	key := genCallKey(msg, blockNumber)
-	if data, ok := c.requestCache.Get(key); ok {
+	if data, ok := c.cache.Get(key); ok {
+		c.cacheHits++
 		return data.([]byte), nil
 	}
 
@@ -59,14 +66,15 @@ func (c *CachedClient) CallContract(ctx context.Context, msg ethereum.CallMsg, b
 	}
 
 	// Cache the request
-	c.requestCache.Add(key, data)
+	c.cache.Add(key, data)
 
 	return data, nil
 }
 
 func (c *CachedClient) HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error) {
 	if number != nil {
-		if header, ok := c.requestCache.Get(number.Int64()); ok {
+		if header, ok := c.headerCache.Get(number.Int64()); ok {
+			c.cacheHits++
 			return header.(*types.Header), nil
 		}
 	}
@@ -78,7 +86,7 @@ func (c *CachedClient) HeaderByNumber(ctx context.Context, number *big.Int) (*ty
 		return nil, err
 	}
 
-	c.requestCache.Add(header.Number.Int64(), header)
+	c.headerCache.Add(header.Number.Int64(), header)
 
 	return header, nil
 }
@@ -105,7 +113,6 @@ func (c *CachedClient) SmartFilterLogs(ctx context.Context, topics [][]common.Ha
 	to := toBlock.Int64()
 
 	retry := func(parts int64) ([]types.Log, error) {
-		fmt.Println("retrying with parts", parts)
 		chunk := (to - from) / parts
 		for i := from; i < to; i += chunk {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
@@ -115,12 +122,6 @@ func (c *CachedClient) SmartFilterLogs(ctx context.Context, topics [][]common.Ha
 				chunk = to - i
 			}
 
-			fmt.Println("from", i, "to", i+chunk)
-
-			// time.Sleep(time.Second * 5)
-			// wg.Add(1)
-			// go func(i int64, chunk int64) {
-			// 	defer wg.Done()
 			res, err := c.FilterLogs(ctx, ethereum.FilterQuery{
 				Topics:    topics,
 				FromBlock: big.NewInt(i),
@@ -130,8 +131,6 @@ func (c *CachedClient) SmartFilterLogs(ctx context.Context, topics [][]common.Ha
 			if err != nil {
 				return nil, err
 			}
-
-			fmt.Println(len(res))
 
 			logs = append(logs, res...)
 		}

@@ -277,5 +277,6 @@ func (c ChainService) DumpMetrics() {
 		c.logger.Info().Str("chain", string(chain)).Msgf("header_by_number: %d requests", client.headerByNumberRequests)
 		c.logger.Info().Str("chain", string(chain)).Msgf("subscribe_logs: %d requests", client.subscribeRequests)
 		c.logger.Info().Str("chain", string(chain)).Msgf("filter_logs: %d requests", client.filterRequests)
+		c.logger.Info().Str("chain", string(chain)).Msgf("cache_hits: %d requests", client.cacheHits)
 	}
 }
