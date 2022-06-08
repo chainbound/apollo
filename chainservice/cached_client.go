@@ -14,34 +14,30 @@ import (
 )
 
 type CachedClient struct {
-	client *ethclient.Client
-	// rateLimiter            ratelimit.Limiter
+	client                 *ethclient.Client
 	contractCallRequests   uint64
 	headerByNumberRequests uint64
 	subscribeRequests      uint64
 	filterRequests         uint64
 
-	// lruCaches are thread safe
-	headerCache *lru.Cache
-
-	decimalCache *lru.Cache
+	// We use a requestCache here for caching requests.
+	// This could save us a lot of calls for requests
+	// like erc20.decimals(), erc20.name(), or other
+	// immutable values.
+	requestCache *lru.Cache
 }
 
 func NewCachedClient(client *ethclient.Client) *CachedClient {
-	hc, _ := lru.New(4096)
-	dc, _ := lru.New(4096)
+	hc, _ := lru.New(8192)
 	return &CachedClient{
 		client:       client,
-		headerCache:  hc,
-		decimalCache: dc,
+		requestCache: hc,
 	}
 }
 
 func (c *CachedClient) CallContract(ctx context.Context, msg ethereum.CallMsg, blockNumber *big.Int) ([]byte, error) {
-	if common.Bytes2Hex(msg.Data) == "313ce567" {
-		if data, ok := c.decimalCache.Get(*msg.To); ok {
-			return data.([]byte), nil
-		}
+	if data, ok := c.requestCache.Get(*msg.To); ok {
+		return data.([]byte), nil
 	}
 
 	c.contractCallRequests++
@@ -51,17 +47,15 @@ func (c *CachedClient) CallContract(ctx context.Context, msg ethereum.CallMsg, b
 		return nil, err
 	}
 
-	// If decimals is called, we want to cache it
-	if common.Bytes2Hex(msg.Data) == "313ce567" {
-		c.decimalCache.Add(*msg.To, data)
-	}
+	// Cache the request
+	c.requestCache.Add(*msg.To, data)
 
 	return data, nil
 }
 
 func (c *CachedClient) HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error) {
 	if number != nil {
-		if header, ok := c.headerCache.Get(number.Int64()); ok {
+		if header, ok := c.requestCache.Get(number.Int64()); ok {
 			return header.(*types.Header), nil
 		}
 	}
@@ -73,7 +67,7 @@ func (c *CachedClient) HeaderByNumber(ctx context.Context, number *big.Int) (*ty
 		return nil, err
 	}
 
-	c.headerCache.Add(header.Number.Int64(), header)
+	c.requestCache.Add(header.Number.Int64(), header)
 
 	return header, nil
 }

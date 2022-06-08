@@ -86,19 +86,22 @@ func (b BlockDater) SecondsToBlockInterval(ctx context.Context, seconds int64) (
 
 var err error
 
-// TODO: this should be a binary search
+// NOTE: could we be better off making this a binary search?
+// Sometimes the search gets stuck hopping between 2 blocks
+// because the predicted block difference is not accurate for that time.
+// We could also introduce some randomness.
+// NOTE: we could also make this work concurrently.
 func (b *BlockDater) FindTargetBlock(ctx context.Context, currentBlock BlockWrapper, target, threshold int64) (*big.Int, error) {
-	// blockFound := false
-
 	var blockDiff int64
 
 	for {
+		// The predicted block difference: difference in time between the target
+		// and the current block, divided by the block time.
 		blockDiff = int64(float64(target-currentBlock.Timestamp) / b.BlockTime)
 		if target-threshold < currentBlock.Timestamp && currentBlock.Timestamp < target+threshold {
 			return currentBlock.Number, nil
 		}
 
-		// if currentBlock.Timestamp < target-threshold {
 		newBlockNum := currentBlock.Number.Int64() + blockDiff
 		currentBlock, err = b.GetBlock(ctx, big.NewInt(newBlockNum))
 		if err != nil {
@@ -128,6 +131,8 @@ func (b *BlockDater) SetBoundaries(ctx context.Context) error {
 }
 
 func (b *BlockDater) GetBlock(ctx context.Context, num *big.Int) (BlockWrapper, error) {
+	// We need a safenum here because num can be nil, which panics when trying
+	// to convert to an int64 for the cache.
 	safeNum := num
 	if num == nil {
 		safeNum = big.NewInt(0)
@@ -137,6 +142,8 @@ func (b *BlockDater) GetBlock(ctx context.Context, num *big.Int) (BlockWrapper, 
 		return cached, nil
 	}
 
+	// Here we use the actual num because `nil` values
+	// give us the latest block.
 	block, err := b.client.BlockByNumber(ctx, num)
 	if err != nil {
 		return BlockWrapper{}, fmt.Errorf("getting block number %s: %w", num, err)
