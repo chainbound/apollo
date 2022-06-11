@@ -1,9 +1,10 @@
 # Apollo
 > Program for easily querying and collecting EVM chaindata based on a schema.
+
 ![apollo-diagram drawio](./docs/apollo-flow.png)
 
 ## Documentation
-For detailed documentation, visit [apollo.chainbound.io](https://apollo.chainbound.io)
+For detailed documentation, visit [apollo.chainbound.io](https://apollo.chainbound.io).
 
 ## Installation
 ```bash
@@ -40,6 +41,6 @@ apollo --stdout
 ## Output
 There are 3 output options:
 * `stdout`: this will just print the results to your terminal.
-* `csv`: this will save your output into a csv file. The name of your file corresponds to the `name` field of your contract schema definition. The other columns are going to be the inputs and outputs fields, also with the names corresponding to the schema.
-* `db`: this will save your output into a Postgres SQL table. The settings are defined in `config.yml` in your `apollo`
-config directory.
+* `csv`: this will save your output into a csv file. The name of your file will be the name of your `query`. The other columns
+will be made up of what's defined in the `save` block.
+* `db`: this will save your output into a Postgres SQL table, with the table name matching your `query` name. The settings are defined in `config.yml` in your `apollo` config directory.
