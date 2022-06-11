@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"strings"
 	"sync"
 	"time"
 
@@ -96,7 +97,17 @@ func (c ChainService) CallMethod(chain apolloTypes.Chain, address common.Address
 	// We only want the correct value here (specified in the schema)
 	results, err := abi.Unpack(method.Name(), raw)
 	if err != nil {
-		return nil, fmt.Errorf("unpacking abi for %s: %w", method.Name(), err)
+		if strings.Contains(err.Error(), "32") {
+			// Sometimes unpacking strings will give an error because our slice is not big enough.
+			// We left pad it here to 64 bytes to fix that.
+			raw = common.LeftPadBytes(raw, 64)
+			results, err = abi.Unpack(method.Name(), raw)
+			if err != nil {
+				return nil, fmt.Errorf("unpacking abi for %s: %w", method.Name(), err)
+			}
+		} else {
+			return nil, fmt.Errorf("unpacking abi for %s: %w", method.Name(), err)
+		}
 	}
 
 	for _, o := range method.Outputs {

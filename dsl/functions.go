@@ -57,6 +57,7 @@ var FormatDate = function.New(&function.Spec{
 	},
 })
 
+// BuildChainFunctions builds the chain functions that can be used in the schema.
 func BuildChainFunctions(provider ChainFunctionProvider, chain types.Chain, block *big.Int) map[string]function.Function {
 	return map[string]function.Function{
 		"balance": function.New(&function.Spec{

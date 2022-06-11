@@ -27,6 +27,9 @@ var (
 	ErrIntervalDefinedForHistoricalEvents = errors.New("interval defined for historical events")
 )
 
+// DynamicSchema represents the schema at different steps
+// of evaluation. For each step, it contains methods to proceed to
+// the next step with new information available.
 type DynamicSchema struct {
 	StartTime     int64                `hcl:"start_time,optional"`
 	EndTime       int64                `hcl:"end_time,optional"`
@@ -39,11 +42,14 @@ type DynamicSchema struct {
 	// Represents the to-be-decoded queries / loops
 	SchemaConfig hcl.Body `hcl:",remain"`
 
+	// These queries will be added later.
 	Queries []*Query
 
 	EvalContext *hcl.EvalContext
 }
 
+// Loop represents a DSL loop block. It contains the items,
+// and for every item a query is generated.
 type Loop struct {
 	Items []cty.Value `hcl:"items"`
 	Query hcl.Body    `hcl:",remain"`
@@ -116,6 +122,8 @@ func (q *Query) EvalTransforms(tp types.ResultType, identifier string) error {
 	return nil
 }
 
+// EvalFilter evaluates the filter list, and if one of the items
+// evaluates to false, it returns false and the evaluation should be stopped.
 func (s *DynamicSchema) EvalFilter(queryName string) (bool, error) {
 	filterspec := hcldec.AttrSpec{
 		Name: "filter",
@@ -358,27 +366,30 @@ func NewSchema(confDir string) (*DynamicSchema, error) {
 		return nil, diags.Errs()[0]
 	}
 
+	// Set up the inital context (access to upper, lower, etc)
 	schemaContext := InitialContext()
 	s := &DynamicSchema{
 		EvalContext: &schemaContext,
 	}
 
+	// Decode ONLY the variables, that's the first thing we need
 	diags = gohcl.DecodeBody(file.Body, &schemaContext, s)
 	if diags.HasErrors() {
 		return nil, diags.Errs()[0]
 	}
 
-	s.EvalContext.Variables = s.Variables
-
+	// Add the variables into the evaluation context
 	for k, v := range s.Variables {
 		s.EvalContext.Variables[k] = v
 	}
 
+	// This is the next step we need to decode. It's either a Loop or Queries.
 	var topLevel struct {
 		Loop    *Loop    `hcl:"loop,block"`
 		Queries []*Query `hcl:"query,block"`
 	}
 
+	// We decode into the topLevel struct with the variables available.
 	diags = gohcl.DecodeBody(s.SchemaConfig, s.EvalContext, &topLevel)
 	if diags.HasErrors() {
 		return nil, diags.Errs()[0]
@@ -388,7 +399,7 @@ func NewSchema(confDir string) (*DynamicSchema, error) {
 	s.Queries = append(s.Queries, topLevel.Queries...)
 
 	// If there are loops, loop over the queries, decode them using
-	// the loop variables in the evaluation context, and save the queries.
+	// the loop variables in the evaluation context, and save the queries
 	if topLevel.Loop != nil {
 		for _, item := range topLevel.Loop.Items {
 			var loopLevel struct {
@@ -406,6 +417,8 @@ func NewSchema(confDir string) (*DynamicSchema, error) {
 		}
 	}
 
+	// For every query, add the evaluation context (we need it later),
+	// then parse and load the needed ABIs.
 	for _, query := range s.Queries {
 		query.EvalContext = s.EvalContext
 
@@ -441,6 +454,10 @@ func NewSchema(confDir string) (*DynamicSchema, error) {
 	return s, nil
 }
 
+// GenerateContextVars converts a CallResult into a map that can be added
+// as context variables. This function is called after the first step (calling
+// methods or parsing events) to generate variables to be used in the next steps
+// (transform, filter, save).
 func GenerateContextVars(cr types.CallResult) map[string]cty.Value {
 	m := make(map[string]cty.Value)
 

@@ -6,11 +6,13 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/chainbound/apollo/log"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	lru "github.com/hashicorp/golang-lru"
+	"github.com/rs/zerolog"
 )
 
 type CachedClient struct {
@@ -19,6 +21,8 @@ type CachedClient struct {
 	headerByNumberRequests uint64
 	subscribeRequests      uint64
 	filterRequests         uint64
+
+	logger zerolog.Logger
 
 	// We use a cache here for caching requests.
 	// This could save us a lot of calls for requests
@@ -36,6 +40,7 @@ func NewCachedClient(client *ethclient.Client) *CachedClient {
 		client:      client,
 		cache:       cache,
 		headerCache: hc,
+		logger:      log.NewLogger("smart_client"),
 	}
 }
 
@@ -44,8 +49,13 @@ func NewCachedClient(client *ethclient.Client) *CachedClient {
 // contract address. Otherwise it will be a combination of contract
 // address, calldata and blocknumber.
 func genCallKey(msg ethereum.CallMsg, blockNumber *big.Int) string {
-	if common.Bytes2Hex(msg.Data) == "313ce567" {
-		return msg.To.String()
+	hex := common.Bytes2Hex(msg.Data)
+	if hex == "313ce567" {
+		return msg.To.String() + hex
+	}
+
+	if hex == "95d89b41" {
+		return msg.To.String() + hex
 	}
 
 	return msg.To.String() + string(msg.Data) + blockNumber.String()
@@ -54,6 +64,7 @@ func genCallKey(msg ethereum.CallMsg, blockNumber *big.Int) string {
 func (c *CachedClient) CallContract(ctx context.Context, msg ethereum.CallMsg, blockNumber *big.Int) ([]byte, error) {
 	key := genCallKey(msg, blockNumber)
 	if data, ok := c.cache.Get(key); ok {
+		c.logger.Trace().Str("to", msg.To.String()).Str("data", string(data.([]byte))).Msg("cache hit")
 		c.cacheHits++
 		return data.([]byte), nil
 	}
@@ -105,10 +116,14 @@ func (c *CachedClient) FilterLogs(ctx context.Context, query ethereum.FilterQuer
 
 // SmartFilterLogs splits up the range in equally large parts. It will concurrently try to get all the logs for the parts,
 // but if one fails because the response was too large, it will split them up in smaller parts and do the same thing.
+// NOTE: this is now  done serially, because when doing it concurrently on an Erigon archive node for a lot of events,
+// my (big) machine almost crashed. A reasonable improvement we can make here is to use a small amount of concurrency,
+// e.g. 2 - 4 concurrent `eth_getLogs` requests. If this fails (context timeouts), we can both increase the block range (parts)
+// and decrease the number of concurrent requests.
 func (c *CachedClient) SmartFilterLogs(ctx context.Context, topics [][]common.Hash, fromBlock, toBlock *big.Int) ([]types.Log, error) {
 	var logs []types.Log
 
-	parts := int64(100)
+	parts := int64(50)
 	from := fromBlock.Int64()
 	to := toBlock.Int64()
 
@@ -128,6 +143,8 @@ func (c *CachedClient) SmartFilterLogs(ctx context.Context, topics [][]common.Ha
 				ToBlock:   big.NewInt(i + chunk),
 			})
 
+			c.logger.Debug().Int("n_logs", len(res)).Msg("got logs")
+
 			if err != nil {
 				return nil, err
 			}
@@ -141,10 +158,13 @@ func (c *CachedClient) SmartFilterLogs(ctx context.Context, topics [][]common.Ha
 	// Keep looping until we get a result. That's the only time this loop will break,
 	// otherwise it will just keep retrying by increasing the parts.
 	for {
+		c.logger.Debug().Int64("parts", parts).Msg("smart filter logs")
 		logs, err := retry(parts)
 		if err != nil {
 			fmt.Println(err)
 			parts *= 2
+
+			c.logger.Debug().Msg("failed, retrying")
 
 			continue
 		}

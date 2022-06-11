@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"strings"
 	"sync"
 	"time"
 
@@ -424,16 +425,31 @@ func (c ChainService) HandleLog(log types.Log, chain apolloTypes.Chain, queryNam
 
 	for _, event := range event.Outputs_ {
 		if idx, ok := indexedEvents[event]; ok {
+			if idx >= len(log.Topics) {
+				return nil, nil
+			}
 			outputs[event] = fmt.Sprint(common.BytesToAddress(log.Topics[idx][:]))
 		}
 	}
 
 	tmp := make(map[string]any)
 	if len(outputs) < len(event.Outputs_) {
-		// if len(log.Data) < 64 {
-		// 	log.Data = common.LeftPadBytes(log.Data, 64)
-		// }
-		err := abi.UnpackIntoMap(tmp, event.Name_, log.Data)
+		err := abi.UnpackIntoMap(tmp, event.Name(), log.Data)
+		if err != nil {
+			if strings.Contains(err.Error(), "32") {
+				// Sometimes unpacking strings will give an error because our slice is not big enough.
+				// We left pad it here to 64 bytes to fix that.
+				log.Data = common.LeftPadBytes(log.Data, 64)
+				err = abi.UnpackIntoMap(tmp, event.Name(), log.Data)
+				if err != nil {
+					c.logger.Debug().Str("chain", string(chain)).Str("tx_hash", log.TxHash.String()).Str("log.Data", common.Bytes2Hex(log.Data)).Msg("problem unpacking log.Data")
+					return nil, fmt.Errorf("unpacking log.Data: %w", err)
+				}
+			} else {
+				c.logger.Debug().Str("chain", string(chain)).Str("tx_hash", log.TxHash.String()).Str("log.Data", common.Bytes2Hex(log.Data)).Msg("problem unpacking log.Data")
+				return nil, fmt.Errorf("unpacking log.Data: %w", err)
+			}
+		}
 		if err != nil {
 			c.logger.Debug().Str("chain", string(chain)).Str("tx_hash", log.TxHash.String()).Str("log.Data", common.Bytes2Hex(log.Data)).Msg("problem unpacking log.Data")
 			return nil, fmt.Errorf("unpacking log.Data: %w", err)
