@@ -1,5 +1,5 @@
 # Apollo
-> Program for easily querying and collecting EVM chaindata based on a schema.
+> **Query**, **transform**, **filter** and **save** EVM based chaindata using a simple schema
 
 ![apollo-diagram drawio](./docs/apollo-flow.png)
 
