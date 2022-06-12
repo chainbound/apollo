@@ -2,7 +2,6 @@ package chainservice
 
 import (
 	"context"
-	"fmt"
 	"math/big"
 	"time"
 
@@ -120,7 +119,7 @@ func (c *CachedClient) FilterLogs(ctx context.Context, query ethereum.FilterQuer
 // my (big) machine almost crashed. A reasonable improvement we can make here is to use a small amount of concurrency,
 // e.g. 2 - 4 concurrent `eth_getLogs` requests. If this fails (context timeouts), we can both increase the block range (parts)
 // and decrease the number of concurrent requests.
-func (c *CachedClient) SmartFilterLogs(ctx context.Context, topics [][]common.Hash, fromBlock, toBlock *big.Int) ([]types.Log, error) {
+func (c *CachedClient) SmartFilterLogs(ctx context.Context, addresses []common.Address, topics [][]common.Hash, fromBlock, toBlock *big.Int) ([]types.Log, error) {
 	var logs []types.Log
 
 	parts := int64(50)
@@ -138,6 +137,7 @@ func (c *CachedClient) SmartFilterLogs(ctx context.Context, topics [][]common.Ha
 			}
 
 			res, err := c.FilterLogs(ctx, ethereum.FilterQuery{
+				Addresses: addresses,
 				Topics:    topics,
 				FromBlock: big.NewInt(i),
 				ToBlock:   big.NewInt(i + chunk),
@@ -161,7 +161,7 @@ func (c *CachedClient) SmartFilterLogs(ctx context.Context, topics [][]common.Ha
 		c.logger.Debug().Int64("parts", parts).Msg("smart filter logs")
 		logs, err := retry(parts)
 		if err != nil {
-			fmt.Println(err)
+			c.logger.Debug().Msg(err.Error())
 			parts *= 2
 
 			c.logger.Debug().Msg("failed, retrying")

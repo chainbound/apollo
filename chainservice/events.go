@@ -60,7 +60,7 @@ func (c ChainService) FilterEvents(query *dsl.Query, fromBlock, toBlock *big.Int
 			ctx, cancel := context.WithTimeout(context.Background(), c.defaultTimeout)
 			defer cancel()
 
-			logs, err := rlClient.SmartFilterLogs(ctx, [][]common.Hash{{topic}}, fromBlock, toBlock)
+			logs, err := rlClient.SmartFilterLogs(ctx, []common.Address{cs.Address()}, [][]common.Hash{{topic}}, fromBlock, toBlock)
 			if err != nil {
 				c.logger.Debug().Str("chain", string(query.Chain)).Err(err).Msg("getting logs from node")
 				out <- apolloTypes.CallResult{
@@ -152,7 +152,7 @@ func (c ChainService) FilterGlobalEvents(query *dsl.Query, fromBlock, toBlock *b
 		ctx, cancel := context.WithTimeout(context.Background(), c.defaultTimeout)
 		defer cancel()
 
-		logs, err := rlClient.SmartFilterLogs(ctx, [][]common.Hash{{topic}}, fromBlock, toBlock)
+		logs, err := rlClient.SmartFilterLogs(ctx, nil, [][]common.Hash{{topic}}, fromBlock, toBlock)
 		if err != nil {
 			c.logger.Debug().Str("chain", string(query.Chain)).Err(err).Msg("getting logs from node")
 			out <- apolloTypes.CallResult{
@@ -392,6 +392,7 @@ func (c ChainService) ListenForGlobalEvents(query *dsl.Query, res chan<- apolloT
 
 				callResult := *aggregateCallResults(results...)
 				callResult.QueryName = query.Name
+				callResult.Type = apolloTypes.GlobalEvent
 				res <- callResult
 			}(log)
 		}
