@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/signal"
 	"path"
+	"syscall"
 	"time"
 
 	_ "embed"
@@ -136,6 +138,7 @@ func Run(opts types.ApolloOpts) error {
 	defaultTimeout := time.Second * 30
 
 	service := chainservice.NewChainService(defaultTimeout, opts.RateLimit, cfg.Rpc)
+	setupCloseHandler(service)
 
 	out := output.NewOutputHandler()
 
@@ -192,4 +195,15 @@ func Run(opts types.ApolloOpts) error {
 	service.DumpMetrics()
 
 	return nil
+}
+
+func setupCloseHandler(svc *chainservice.ChainService) {
+	c := make(chan os.Signal)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-c
+		logger.Warn().Msg("ctrl+c pressed, exiting...")
+		svc.DumpMetrics()
+		os.Exit(0)
+	}()
 }

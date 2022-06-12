@@ -9,9 +9,9 @@ import (
 	"github.com/chainbound/apollo/types"
 )
 
-const (
-	rpcUrl = "wss://arb-mainnet.g.alchemy.com/v2/5_JWUuiS1cewWFpLzRxdjgZM0yLA4Uqp"
-)
+// const (
+// 	rpcUrl = "wss://arb-mainnet.g.alchemy.com/v2/5_JWUuiS1cewWFpLzRxdjgZM0yLA4Uqp"
+// )
 
 func newChainService() *ChainService {
 	// ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
