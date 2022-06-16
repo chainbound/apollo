@@ -26,24 +26,30 @@ contract ABIs.
 for most queries, and we recommend either using your own node, or getting one with a node provider
 like Alchemy or Chainstack.
 
-`$HOME/.config/apollo/schema.hcl` is configured with a default schema that you can try out.
+`$HOME/.config/apollo/schema.hcl` is configured with a default schema that you can try out, but for a more in depth
+explanation visit the [schema documentation](https://apollo.chainbound.io/schema/intro) or check out 
+some [examples](https://apollo.chainbound.io/schema/schema-examples).
 
 ### Running
-**Important**: running `apollo` with the default parameters has a high rate-limit, and your node provider might not like that.
-Please check the [rate limiting](https://apollo.chainbound.io/getting-started#rate-limiting) section in the documentation. Hint:
-set the `--rate-limit` flag to something low like 10.
+**Important**: running `apollo` with the default parameters will send out a lot of requests, and your node provider might rate limit you.
+Please check the [rate limiting](https://apollo.chainbound.io/getting-started#rate-limiting) section in the documentation. You can set
+the `--rate-limit` option to something low like 20 to start.
 
 #### Realtime mode
-After defining the schema (with `time_interval`), run
+After defining the schema, run
 ```bash
 apollo --realtime --stdout
 ```
+In the case of events, this will listen for events in real-time and save them in your output option.
+In the case of methods, you will have to define one of the `interval` parameters,
+and `apollo` will run that query at every interval.
 
 #### Historical mode
 After defining the schema with `start`, `end` and `interval` parameters, just run
 ```bash
 apollo --stdout
 ```
+The default mode is historical mode.
 
 ## Output
 There are 3 output options:
