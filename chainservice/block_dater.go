@@ -18,16 +18,21 @@ type BlockWrapper struct {
 	Timestamp int64
 }
 
-// TODO: this should be a separate struct per chain
 type BlockDater struct {
+	// client is used to get blocks from the network
 	client *ethclient.Client
 
+	// blockCache is a map from block numbers to blocks
 	blockCache map[int64]BlockWrapper
 	logger     zerolog.Logger
 
+	// BlockTime is the average time between blocks on the
+	// corresponding chain
 	BlockTime float64
-	Latest    *BlockWrapper
-	First     *BlockWrapper
+	// Latest contains the latest block
+	Latest *BlockWrapper
+	// First contains the first block
+	First *BlockWrapper
 }
 
 func NewBlockDater(client *ethclient.Client) BlockDater {
@@ -38,8 +43,8 @@ func NewBlockDater(client *ethclient.Client) BlockDater {
 	}
 }
 
-// BlockNumberByTimestamp returns the first block it finds that is under 60 seconds
-// difference with the target timestamp.
+// BlockNumberByTimestamp returns the first block it finds that is under 3 * 60 seconds
+// difference with the target timestamp. We have this threshold because it's difficult to get any closer.
 func (b *BlockDater) BlockNumberByTimestamp(ctx context.Context, timestamp int64) (int64, error) {
 	ts := time.Unix(timestamp, 0)
 

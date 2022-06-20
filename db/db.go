@@ -18,6 +18,8 @@ var (
 	ErrNotConnected = errors.New("not connected to database, use Connect() or check if DB is accessible")
 )
 
+// DbSettings contains the database connection settings read from the
+// YAML configuration file, and also an optional default timeout.
 type DbSettings struct {
 	User           string `yaml:"user"`
 	Password       string `yaml:"password"`
@@ -28,9 +30,10 @@ type DbSettings struct {
 
 type DB struct {
 	Settings DbSettings
-	pdb      *sql.DB
-	connStr  string
-	logger   zerolog.Logger
+	// pdb wraps the underlying sql connection
+	pdb     *sql.DB
+	connStr string
+	logger  zerolog.Logger
 }
 
 func NewDB(s DbSettings) *DB {
@@ -71,7 +74,8 @@ func (db *DB) IsConnected() bool {
 	}
 }
 
-// CreateTable drop and creates the table if it exists, otherwise just creates it.
+// CreateTable drops and creates the table with `name` if it exists, otherwise just creates it.
+// `cols` contains the results, which in this case are used to determine the types of the tables.
 func (db DB) CreateTable(ctx context.Context, name string, cols map[string]cty.Value) error {
 	ddl, err := generate.GenerateCreateDDL(name, cols)
 	if err != nil {
@@ -89,6 +93,7 @@ func (db DB) CreateTable(ctx context.Context, name string, cols map[string]cty.V
 	return nil
 }
 
+// InsertResult converts the result map into the table with name `name`
 func (db DB) InsertResult(name string, toInsert map[string]string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), db.Settings.DefaultTimeout)
 	defer cancel()

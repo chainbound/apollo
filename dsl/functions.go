@@ -11,6 +11,7 @@ import (
 	"github.com/zclconf/go-cty/cty/function/stdlib"
 )
 
+// The initial functions provided by the DSL.
 var Functions = map[string]function.Function{
 	"upper":          stdlib.UpperFunc,
 	"lower":          stdlib.LowerFunc,
@@ -19,25 +20,32 @@ var Functions = map[string]function.Function{
 	"format_date":    FormatDate,
 }
 
+// The definition of the `parse_decimals` function.
+//
+// Parses a raw blockchain value according to a number of decimals.
 var ParseDecimals = function.New(&function.Spec{
 	Params: []function.Parameter{
 		{Name: "raw", Type: cty.Number},
 		{Name: "decimals", Type: cty.Number},
 	},
 	Type: function.StaticReturnType(cty.Number),
+	// The actual function implementation.
 	Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+		// args are the arguments as a list.
 		raw := args[0].AsBigFloat()
 		decimalsInt, _ := args[1].AsBigFloat().Int64()
-		decimals := new(big.Int).Exp(big.NewInt(10), big.NewInt(decimalsInt), nil)
 
-		parsed, _ := raw.Quo(raw, new(big.Float).SetInt(decimals)).Float64()
+		divider := new(big.Int).Exp(big.NewInt(10), big.NewInt(decimalsInt), nil)
+		parsed, _ := raw.Quo(raw, new(big.Float).SetInt(divider)).Float64()
 
 		return cty.NumberFloatVal(parsed), nil
 	},
 })
 
+// The definition of the `format_date` function
+//
 // Formats the date according to a format and returns the Unix timestamp
-// in seconds
+// in seconds.
 var FormatDate = function.New(&function.Spec{
 	Params: []function.Parameter{
 		{Name: "format", Type: cty.String},

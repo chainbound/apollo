@@ -43,30 +43,34 @@ type DynamicSchema struct {
 	SchemaConfig hcl.Body `hcl:",remain"`
 
 	// These queries will be added later.
-	Queries []*Query
+	QuerySchemas []*QuerySchema
 
+	// EvalContext is what defines the functions and variables that are available to the parser
+	// and can thus be used by the schema. They will be different at each step of the execution.
 	EvalContext *hcl.EvalContext
 }
 
-// Loop represents a DSL loop block. It contains the items,
+// LoopSchema defines a DSL loop block. It contains the items,
 // and for every item a query is generated.
-type Loop struct {
-	Items []cty.Value `hcl:"items"`
-	Query hcl.Body    `hcl:",remain"`
+type LoopSchema struct {
+	Items       []cty.Value `hcl:"items"`
+	QuerySchema hcl.Body    `hcl:",remain"`
 }
 
-type Filters struct {
-	Options hcl.Body `hcl:",remain"`
-}
+// QuerySchema defines a DSL query block.
+type QuerySchema struct {
+	Name  string      `hcl:"name,label"`
+	Chain types.Chain `hcl:"chain"`
 
-type Query struct {
-	Name      string      `hcl:"name,label"`
-	Chain     types.Chain `hcl:"chain"`
-	Contracts []*Contract `hcl:"contract,block"`
-	// Global events
-	Events  []*Event `hcl:"event,block"`
-	Filters hcl.Body `hcl:"filter,remain"`
+	// ContractSchemas holds an array of contract schemas
+	ContractSchemas []*ContractSchema `hcl:"contract,block"`
+	// EventSchemas holds an array of event schemas
+	EventSchemas []*EventSchema `hcl:"event,block"`
+
+	// The Save block also contains unknown options with hcl:"remain",
+	// but we have to define it as a block here because it's mandatory
 	Saves   Save     `hcl:"save,block"`
+	Filters hcl.Body `hcl:"filter,remain"`
 
 	// Every query can have its own block intervals,
 	// since it can run on different chains.
@@ -80,9 +84,9 @@ type Query struct {
 // EvalTransforms evaluates the transformation block per contract / top-level method.
 // The identifier is the OutputName of the method or the name of the contract in other
 // cases.
-func (q *Query) EvalTransforms(tp types.ResultType, identifier string) error {
+func (q *QuerySchema) EvalTransforms(tp types.ResultType, identifier string) error {
 	if tp == types.GlobalEvent {
-		for _, event := range q.Events {
+		for _, event := range q.EventSchemas {
 			if event.Transforms == nil {
 				return nil
 			}
@@ -100,7 +104,7 @@ func (q *Query) EvalTransforms(tp types.ResultType, identifier string) error {
 			}
 		}
 	} else {
-		for _, c := range q.Contracts {
+		for _, c := range q.ContractSchemas {
 			if c.Transforms == nil {
 				return nil
 			}
@@ -131,7 +135,7 @@ func (s *DynamicSchema) EvalFilter(queryName string) (bool, error) {
 	}
 
 	var filters []bool
-	for _, q := range s.Queries {
+	for _, q := range s.QuerySchemas {
 		if q.Name == queryName {
 			if q.Filters == nil {
 				return true, nil
@@ -169,7 +173,7 @@ type ChainFunctionProvider interface {
 // evaluates the save block. The results will be returned as a map.
 func (s *DynamicSchema) EvalSave(provider ChainFunctionProvider, res types.CallResult) (map[string]cty.Value, error) {
 	outputs := make(map[string]cty.Value)
-	for _, q := range s.Queries {
+	for _, q := range s.QuerySchemas {
 		if q.Name == res.QueryName {
 			if q.EvalContext.Variables == nil {
 				q.EvalContext.Variables = make(map[string]cty.Value)
@@ -209,8 +213,8 @@ func (s *DynamicSchema) EvalSave(provider ChainFunctionProvider, res types.CallR
 func (s DynamicSchema) Validate(opts types.ApolloOpts) error {
 	hasMethods := false
 	hasEvents := false
-	for _, q := range s.Queries {
-		for _, c := range q.Contracts {
+	for _, q := range s.QuerySchemas {
+		for _, c := range q.ContractSchemas {
 			hasMethods = len(c.Methods) > 0
 			hasEvents = len(c.Events) > 0
 		}
@@ -245,12 +249,12 @@ func (s DynamicSchema) Validate(opts types.ApolloOpts) error {
 	return nil
 }
 
-func (q Query) HasGlobalEvents() bool {
-	return len(q.Events) > 0
+func (q QuerySchema) HasGlobalEvents() bool {
+	return len(q.EventSchemas) > 0
 }
 
-func (q Query) HasContractEvents() (hasContractEvents bool) {
-	for _, c := range q.Contracts {
+func (q QuerySchema) HasContractEvents() (hasContractEvents bool) {
+	for _, c := range q.ContractSchemas {
 		if len(c.Events) > 0 {
 			hasContractEvents = true
 		}
@@ -259,8 +263,8 @@ func (q Query) HasContractEvents() (hasContractEvents bool) {
 	return
 }
 
-func (q Query) HasContractMethods() (hasContractMethods bool) {
-	for _, c := range q.Contracts {
+func (q QuerySchema) HasContractMethods() (hasContractMethods bool) {
+	for _, c := range q.ContractSchemas {
 		if len(c.Methods) > 0 {
 			hasContractMethods = true
 		}
@@ -269,59 +273,79 @@ func (q Query) HasContractMethods() (hasContractMethods bool) {
 	return
 }
 
-type Contract struct {
+type ContractSchema struct {
 	Address_ string `hcl:"address"`
 	AbiPath  string `hcl:"abi"`
 
-	Methods []*Method `hcl:"method,block"`
-	Events  []*Event  `hcl:"event,block"`
+	// ContractSchema can hold both methods
+	// and events
+	Methods []*MethodSchema `hcl:"method,block"`
+	Events  []*EventSchema  `hcl:"event,block"`
 
+	// Transform internally uses hcl:"remain",
+	// because it has to work with previously fetched
+	// data.
 	Transforms *Transform `hcl:"transform,block"`
 
 	// The ABI will get injected when decoding the schema
 	Abi abi.ABI
 }
 
-func (c Contract) Address() common.Address {
+func (c ContractSchema) Address() common.Address {
 	return common.HexToAddress(c.Address_)
 }
 
-type Method struct {
-	Address     *string           `hcl:"address"`
-	BlockOffset int64             `hcl:"block_offset,optional"`
-	Name_       string            `hcl:"name,label"`
-	Inputs_     map[string]string `hcl:"inputs,optional"`
-	Outputs     []string          `hcl:"outputs"`
+type MethodSchema struct {
+	// BlockOffset is the block offset at which to call the method.
+	// Only used when this method is a method that's supposed to be called
+	// at a certain event.
+	BlockOffset int64  `hcl:"block_offset,optional"`
+	Name_       string `hcl:"name,label"`
+
+	// Inputs_ contains the method input arguments. The names of the arguments
+	// have to be the same as in the ABI.
+	Inputs_ map[string]string `hcl:"inputs,optional"`
+	// The method outputs we want to save. Any named outputs should be the same
+	// as in the ABI.
+	Outputs []string `hcl:"outputs"`
 }
 
-func (m Method) Name() string {
+func (m MethodSchema) Name() string {
 	return m.Name_
 }
 
-func (m Method) Inputs() map[string]string {
+func (m MethodSchema) Inputs() map[string]string {
 	return m.Inputs_
 }
 
-type Event struct {
-	Name_    string    `hcl:"name,label"`
-	AbiPath  string    `hcl:"abi,optional"`
-	Outputs_ []string  `hcl:"outputs"`
-	Methods  []*Method `hcl:"method,block"`
+type EventSchema struct {
+	Name_   string `hcl:"name,label"`
+	AbiPath string `hcl:"abi,optional"`
 
+	// The event outputs we want to save. They
+	// have to be the same as in the ABI.
+	Outputs_ []string `hcl:"outputs"`
+	// Any optional methods we want to call at the event.
+	Methods []*MethodSchema `hcl:"method,block"`
+
+	// Transform internally uses hcl:"remain",
+	// because it has to work with previously fetched
+	// data.
 	Transforms *Transform `hcl:"transform,block"`
 
+	// The ABI will get injected when decoding the schema
 	Abi abi.ABI
 }
 
-func (e Event) Name() string {
+func (e EventSchema) Name() string {
 	return e.Name_
 }
 
-func (e Event) Outputs() []string {
+func (e EventSchema) Outputs() []string {
 	return e.Outputs_
 }
 
-func (e Event) OutputName() string {
+func (e EventSchema) OutputName() string {
 	return e.Name_ + "_events"
 }
 
@@ -385,8 +409,8 @@ func NewSchema(confDir string) (*DynamicSchema, error) {
 
 	// This is the next step we need to decode. It's either a Loop or Queries.
 	var topLevel struct {
-		Loop    *Loop    `hcl:"loop,block"`
-		Queries []*Query `hcl:"query,block"`
+		Loop    *LoopSchema    `hcl:"loop,block"`
+		Queries []*QuerySchema `hcl:"query,block"`
 	}
 
 	// We decode into the topLevel struct with the variables available.
@@ -396,33 +420,33 @@ func NewSchema(confDir string) (*DynamicSchema, error) {
 	}
 
 	// If there are top-level queries, immediately save them
-	s.Queries = append(s.Queries, topLevel.Queries...)
+	s.QuerySchemas = append(s.QuerySchemas, topLevel.Queries...)
 
 	// If there are loops, loop over the queries, decode them using
 	// the loop variables in the evaluation context, and save the queries
 	if topLevel.Loop != nil {
 		for _, item := range topLevel.Loop.Items {
 			var loopLevel struct {
-				Queries []*Query `hcl:"query,block"`
+				Queries []*QuerySchema `hcl:"query,block"`
 			}
 
 			newCtx := InitialContext()
 			newCtx.Variables = map[string]cty.Value{"item": item}
-			diags = gohcl.DecodeBody(topLevel.Loop.Query, &newCtx, &loopLevel)
+			diags = gohcl.DecodeBody(topLevel.Loop.QuerySchema, &newCtx, &loopLevel)
 			if diags.HasErrors() {
 				return nil, diags.Errs()[0]
 			}
 
-			s.Queries = append(s.Queries, loopLevel.Queries...)
+			s.QuerySchemas = append(s.QuerySchemas, loopLevel.Queries...)
 		}
 	}
 
 	// For every query, add the evaluation context (we need it later),
 	// then parse and load the needed ABIs.
-	for _, query := range s.Queries {
+	for _, query := range s.QuerySchemas {
 		query.EvalContext = s.EvalContext
 
-		for _, event := range query.Events {
+		for _, event := range query.EventSchemas {
 			f, err := os.Open(path.Join(confDir, event.AbiPath))
 			if err != nil {
 				return nil, fmt.Errorf("ParseV2: reading ABI file: %w", err)
@@ -436,7 +460,7 @@ func NewSchema(confDir string) (*DynamicSchema, error) {
 			event.Abi = abi
 		}
 
-		for _, contract := range query.Contracts {
+		for _, contract := range query.ContractSchemas {
 			f, err := os.Open(path.Join(confDir, contract.AbiPath))
 			if err != nil {
 				return nil, fmt.Errorf("ParseV2: reading ABI file: %w", err)

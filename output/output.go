@@ -13,12 +13,11 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
-type OutputOption func(*OutputHandler)
-
 type OutputHandler struct {
 	stdout bool
 	csv    *CsvHandler
 	db     *db.DB
+	// tables keeps track of which tables have been created
 	tables map[string]bool
 	logger zerolog.Logger
 }
@@ -77,6 +76,9 @@ func convertCtyMap(m map[string]cty.Value) map[string]string {
 	return new
 }
 
+// HandleResult takes a map of the final results (from the `save` block), and writes
+// it to the preferred output options. If DB output is selected, it will create
+// the table if it doesn't exist yet. If CSV is selected, it will create the file.
 func (o OutputHandler) HandleResult(name string, res map[string]cty.Value) error {
 	if o.stdout {
 		o.LogMap(res)
@@ -85,7 +87,6 @@ func (o OutputHandler) HandleResult(name string, res map[string]cty.Value) error
 	strRes := convertCtyMap(res)
 
 	if o.db != nil {
-
 		if ok := o.tables[name]; !ok {
 			err := o.db.CreateTable(context.Background(), name, res)
 			if err != nil {
@@ -123,9 +124,10 @@ func (o OutputHandler) HandleResult(name string, res map[string]cty.Value) error
 }
 
 type CsvHandler struct {
-	// map of contract to headers, so that we match
+	// headers maps queries to header names, for matching
 	headers map[string][]string
-	files   map[string]*csv.Writer
+	// files maps queries to csv writers
+	files map[string]*csv.Writer
 }
 
 func NewCsvHandler() *CsvHandler {
@@ -155,11 +157,10 @@ func (c *CsvHandler) AddCsv(name string, cols map[string]cty.Value) error {
 
 func (c CsvHandler) generateCsvEntry(name string, res map[string]string) []string {
 	header := c.headers[name]
-	// Remove standard columns
 	entries := make([]string, len(header))
 
-	// Remove the standard headers
-
+	// This loop makes sure the entries (which are not of a set order)
+	// are written in the correct order determined by the header.
 	for k, v := range res {
 		for i, h := range header {
 			if k == h {

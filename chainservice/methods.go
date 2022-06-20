@@ -16,9 +16,9 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-// RunMethodCaller starts a listener on the `blocks` channel, and on every incoming block it will execute all methods concurrently
-// on the given blockNumber.
-func (c *ChainService) RunMethodCaller(query *dsl.Query, realtime bool, blocks <-chan *big.Int, out chan<- apolloTypes.CallResult) {
+// RunMethodCaller starts a listening channel on `blocks`, and on every incoming block it will execute all methods concurrently
+// on the given blockNumber, and send the results on the `out` channel.
+func (c *ChainService) RunMethodCaller(query *dsl.QuerySchema, realtime bool, blocks <-chan *big.Int, out chan<- apolloTypes.CallResult) {
 	var wg sync.WaitGroup
 	c.logger.Debug().Msg("contract methods")
 
@@ -29,15 +29,15 @@ func (c *ChainService) RunMethodCaller(query *dsl.Query, realtime bool, blocks <
 		c.logger.Trace().Str("block", blockNumber.String()).Msg("new block")
 		go func(blockNumber *big.Int) {
 			defer wg.Done()
-			for _, contract := range query.Contracts {
+			for _, contract := range query.ContractSchemas {
 				var wg2 sync.WaitGroup
 				var results []*apolloTypes.CallResult
 				for _, method := range contract.Methods {
 					wg2.Add(1)
-					go func(contract *dsl.Contract, method *dsl.Method) {
+					go func(contract *dsl.ContractSchema, method *dsl.MethodSchema) {
 						defer wg2.Done()
 						c.rateLimiter.Take()
-						result, err := c.CallMethod(query.Chain, contract.Address(), contract.Abi, method, blockNumber)
+						result, err := c.callMethod(query.Chain, contract.Address(), contract.Abi, method, blockNumber)
 						if err != nil {
 							out <- apolloTypes.CallResult{
 								Err: err,
@@ -71,8 +71,8 @@ func (c *ChainService) RunMethodCaller(query *dsl.Query, realtime bool, blocks <
 	close(out)
 }
 
-// CallMethod executes all the methods on the contract, and aggregates their results into a CallResult
-func (c ChainService) CallMethod(chain apolloTypes.Chain, address common.Address, abi abi.ABI, method *dsl.Method, blockNumber *big.Int) (*apolloTypes.CallResult, error) {
+// callMethod executes all the methods on the contract, and aggregates their results into a CallResult
+func (c ChainService) callMethod(chain apolloTypes.Chain, address common.Address, abi abi.ABI, method *dsl.MethodSchema, blockNumber *big.Int) (*apolloTypes.CallResult, error) {
 	inputs := make(map[string]any)
 	outputs := make(map[string]any)
 	rlClient := c.clients[chain]

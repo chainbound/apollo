@@ -18,7 +18,7 @@ func TestNewSchema(t *testing.T) {
 
 	// s.Queries = nil
 
-	sjson, err := json.MarshalIndent(s.Queries, "", "  ")
+	sjson, err := json.MarshalIndent(s.QuerySchemas, "", "  ")
 	if err != nil {
 		t.Fatal(err)
 	}

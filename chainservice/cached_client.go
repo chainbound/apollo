@@ -15,7 +15,10 @@ import (
 )
 
 type CachedClient struct {
-	client                 *ethclient.Client
+	// client is the internal ethclient.Client
+	client *ethclient.Client
+
+	// internal stats
 	contractCallRequests   uint64
 	headerByNumberRequests uint64
 	subscribeRequests      uint64
@@ -29,7 +32,9 @@ type CachedClient struct {
 	// immutable values.
 	cache       *lru.Cache
 	headerCache *lru.Cache
-	cacheHits   int64
+
+	// total cache hits
+	cacheHits int64
 }
 
 func NewCachedClient(client *ethclient.Client) *CachedClient {

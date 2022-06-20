@@ -14,6 +14,7 @@ type Column struct {
 	Final bool // utility flag for setting types, finalized when type is known
 }
 
+// GenerateCreateDDL creates CREATE statements based on the tableName and the columns.
 func GenerateCreateDDL(tableName string, cols map[string]cty.Value) (string, error) {
 	columns, err := GenerateColumns(cols)
 	if err != nil {
@@ -33,6 +34,8 @@ func GenerateCreateDDL(tableName string, cols map[string]cty.Value) (string, err
 	return ddl, nil
 }
 
+// GenerateInsertSQL generates INSERT statements based on the tableName and the
+// toInsert values.
 func GenerateInsertSQL(tableName string, toInsert map[string]string) string {
 	columns := "("
 	values := "("

@@ -15,35 +15,46 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/rs/zerolog"
-	"github.com/zclconf/go-cty/cty"
 	"go.uber.org/ratelimit"
 )
 
 type ChainService struct {
 	logger zerolog.Logger
 
-	clients     map[apolloTypes.Chain]*CachedClient
+	// clients is a map that keeps a CachedClient per chain
+	clients map[apolloTypes.Chain]*CachedClient
+	// blockDaters is a map that keeps a BlockDater per chain
 	blockDaters map[apolloTypes.Chain]BlockDater
+
+	// actionsPerSecond defines how many atomic actions can be executed per second.
+	// It acts as an internal rate-limiter and can be set with the --rate-limit option.
+	actionsPerSecond int
+	// rateLimiter is the actual rate limiter which uses actionsPerSecond. Every time an atomic that contains
+	// network requests is started, we call rateLimiter.Take(), which will block if the bucket is full.
 	rateLimiter ratelimit.Limiter
 
+	// rpcs is a map from a chain to an api url.
 	rpcs map[apolloTypes.Chain]string
 
-	defaultTimeout    time.Duration
-	requestsPerSecond int
+	// defaultTimeout is the default timeout after which any network request
+	// that the chainservice makes will time out.
+	defaultTimeout time.Duration
 }
 
-func NewChainService(defaultTimeout time.Duration, requestsPerSecond int, rpcs map[apolloTypes.Chain]string) *ChainService {
+func NewChainService(defaultTimeout time.Duration, actionsPerSecond int, rpcs map[apolloTypes.Chain]string) *ChainService {
 	return &ChainService{
-		defaultTimeout:    defaultTimeout,
-		requestsPerSecond: requestsPerSecond,
-		rpcs:              rpcs,
-		clients:           make(map[apolloTypes.Chain]*CachedClient),
-		blockDaters:       make(map[apolloTypes.Chain]BlockDater),
-		rateLimiter:       ratelimit.New(requestsPerSecond),
-		logger:            log.NewLogger("chainservice"),
+		defaultTimeout:   defaultTimeout,
+		actionsPerSecond: actionsPerSecond,
+		rpcs:             rpcs,
+		clients:          make(map[apolloTypes.Chain]*CachedClient),
+		blockDaters:      make(map[apolloTypes.Chain]BlockDater),
+		rateLimiter:      ratelimit.New(actionsPerSecond),
+		logger:           log.NewLogger("chainservice"),
 	}
 }
 
+// Connect will create a CachedClient and a BlockDater for the given chain
+// and store them in the maps.
 func (c *ChainService) Connect(ctx context.Context, chain apolloTypes.Chain) (*ChainService, error) {
 	client, err := ethclient.DialContext(ctx, c.rpcs[chain])
 	if err != nil {
@@ -57,17 +68,15 @@ func (c *ChainService) Connect(ctx context.Context, chain apolloTypes.Chain) (*C
 	return c, nil
 }
 
-type EvaluationResult struct {
-	Name string
-	Err  error
-	Res  map[string]cty.Value
-}
-
+// Start handles the schema. For every query
+// * it calls Connect to connect the client and block dater
+// * it determines the start and end blocks (using BlockDater), and run that
+// query concurrently.
 func (c *ChainService) Start(ctx context.Context, schema *dsl.DynamicSchema, opts apolloTypes.ApolloOpts, out chan<- apolloTypes.CallResult) error {
-	queryChannels := make(map[string]chan apolloTypes.CallResult, len(schema.Queries))
+	queryChannels := make(map[string]chan apolloTypes.CallResult, len(schema.QuerySchemas))
 
-	c.logger.Info().Msgf("running with %d queries", len(schema.Queries))
-	for i, query := range schema.Queries {
+	c.logger.Info().Msgf("running with %d queries", len(schema.QuerySchemas))
+	for i, query := range schema.QuerySchemas {
 		// Change query name into something that is guaranteed to be unique
 		// If we already have a client for this chain, don't create a new one
 		if _, ok := c.clients[query.Chain]; !ok {
@@ -106,7 +115,7 @@ func (c *ChainService) Start(ctx context.Context, schema *dsl.DynamicSchema, opt
 		}
 
 		queryKey := fmt.Sprintf("%d-%s", i, query.Name)
-		ch := c.HandleQuery(query, opts)
+		ch := c.handleQuery(query, opts)
 		// Problem, can't just use query.Name here since these are not always unique,
 		// in a loop for example. We need the loop variable to
 		queryChannels[queryKey] = ch
@@ -128,7 +137,6 @@ func (c *ChainService) Start(ctx context.Context, schema *dsl.DynamicSchema, opt
 				// fmt.Printf("%+v\n", msg)
 				out <- msg
 			default:
-				continue
 			}
 		}
 	}
@@ -138,9 +146,9 @@ func (c *ChainService) Start(ctx context.Context, schema *dsl.DynamicSchema, opt
 	return nil
 }
 
-// HandleQuery is a non-blocking function that handles an individual query. It returns a channel
+// handleQuery is a non-blocking function that handles an individual query. It returns a channel
 // on which the results are sent.
-func (c ChainService) HandleQuery(query *dsl.Query, opts apolloTypes.ApolloOpts) chan apolloTypes.CallResult {
+func (c ChainService) handleQuery(query *dsl.QuerySchema, opts apolloTypes.ApolloOpts) chan apolloTypes.CallResult {
 	blocks := make(chan *big.Int)
 	out := make(chan apolloTypes.CallResult)
 	c.logger.Debug().Str("query", query.Name).Msg("starting query")
