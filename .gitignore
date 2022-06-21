@@ -5,3 +5,4 @@ abi/
 
 schema.hcl
 config.yml
+dist/
