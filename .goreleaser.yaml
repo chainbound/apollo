@@ -31,12 +31,13 @@ changelog:
     exclude:
       - "^docs:"
       - "^test:"
+
 # https://goreleaser.com/customization/release/#github
 release:
   github:
     owner: user
     name: repo
 
-  draft: true
+  # draft: true
   prerelease: auto
   mode: append
