@@ -93,7 +93,7 @@ func (db DB) CreateTable(ctx context.Context, name string, cols map[string]cty.V
 	return nil
 }
 
-// InsertResult converts the result map into the table with name `name`
+// InsertResult converts the result map into the table with name `name`.
 func (db DB) InsertResult(name string, toInsert map[string]string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), db.Settings.DefaultTimeout)
 	defer cancel()
