@@ -2,6 +2,7 @@ package chainservice
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 	"time"
 
@@ -136,6 +137,7 @@ func (c *CachedClient) SmartFilterLogs(ctx context.Context, addresses []common.A
 
 	retry := func(parts int64) ([]types.Log, error) {
 		chunk := (to - from) / parts
+		part := 1
 		for i := from; i < to; i += chunk {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 			defer cancel()
@@ -151,13 +153,14 @@ func (c *CachedClient) SmartFilterLogs(ctx context.Context, addresses []common.A
 				ToBlock:   big.NewInt(i + chunk),
 			})
 
-			c.logger.Debug().Int("n_logs", len(res)).Msg("got logs")
+			c.logger.Debug().Int("n_logs", len(res)).Str("progress", fmt.Sprintf("%.2f%%", float64(part)/float64(parts)*100)).Msg("got logs")
 
 			if err != nil {
 				return nil, err
 			}
 
 			logs = append(logs, res...)
+			part++
 		}
 
 		return logs, nil
