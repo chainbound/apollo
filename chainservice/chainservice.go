@@ -39,6 +39,12 @@ type ChainService struct {
 	// defaultTimeout is the default timeout after which any network request
 	// that the chainservice makes will time out.
 	defaultTimeout time.Duration
+
+	// startTime is populated when chainservice.Start is called. Used by metrics.
+	startTime time.Time
+
+	// processingTime is populated when the schema is completed.
+	processingTime time.Duration
 }
 
 func NewChainService(defaultTimeout time.Duration, actionsPerSecond int, rpcs map[apolloTypes.Chain]string) *ChainService {
@@ -74,6 +80,7 @@ func (c *ChainService) Connect(ctx context.Context, chain apolloTypes.Chain) (*C
 // query concurrently.
 func (c *ChainService) Start(ctx context.Context, schema *dsl.DynamicSchema, opts apolloTypes.ApolloOpts, out chan<- apolloTypes.CallResult) error {
 	queryChannels := make(map[string]chan apolloTypes.CallResult, len(schema.QuerySchemas))
+	c.startTime = time.Now()
 
 	c.logger.Info().Msgf("running with %d queries", len(schema.QuerySchemas))
 	for i, query := range schema.QuerySchemas {
@@ -141,6 +148,7 @@ func (c *ChainService) Start(ctx context.Context, schema *dsl.DynamicSchema, opt
 		}
 	}
 
+	c.processingTime = time.Since(c.startTime)
 	close(out)
 
 	return nil
@@ -286,5 +294,11 @@ func (c ChainService) DumpMetrics() {
 		c.logger.Info().Str("chain", string(chain)).Msgf("subscribe_logs: %d requests", client.subscribeRequests)
 		c.logger.Info().Str("chain", string(chain)).Msgf("filter_logs: %d requests", client.filterRequests)
 		c.logger.Info().Str("chain", string(chain)).Msgf("cache_hits: %d requests", client.cacheHits)
+
+		if c.processingTime == 0 {
+			c.logger.Info().Str("chain", string(chain)).Msgf("processing_time: %s", time.Since(c.startTime))
+		} else {
+			c.logger.Info().Str("chain", string(chain)).Msgf("processing_time: %s", c.processingTime)
+		}
 	}
 }
