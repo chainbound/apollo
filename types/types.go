@@ -37,11 +37,14 @@ const (
 )
 
 type CallResult struct {
-	Err             error
-	Chain           Chain
-	Type            ResultType
-	QueryName       string
-	Identifier      string
+	Err        error
+	Chain      Chain
+	Type       ResultType
+	QueryName  string
+	Identifier string
+	// EventName can be used to differentiate between events
+	// in the final output when recording multiple events
+	EventName       string
 	ContractAddress common.Address
 	BlockNumber     uint64
 	BlockHash       common.Hash

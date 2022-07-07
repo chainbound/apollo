@@ -493,6 +493,7 @@ func GenerateContextVars(cr types.CallResult) map[string]cty.Value {
 
 	if cr.Type != types.Method {
 		m["tx_hash"], _ = gocty.ToCtyValue(cr.TxHash.String(), cty.String)
+		m["event_name"], _ = gocty.ToCtyValue(cr.EventName, cty.String)
 		m["tx_index"], _ = gocty.ToCtyValue(cr.TxIndex, cty.Number)
 	}
 

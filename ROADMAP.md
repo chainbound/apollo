@@ -59,9 +59,9 @@
   	for defining a custom on-chain price method for example. It would be executed at the block
 	it gets called at.
   - [ ] CLI options for
-	- [ ] log parts
-	- [ ] schema path
-	- [ ] output path
+  	- [x] log parts
+  	- [ ] schema path
+  	- [ ] output path
   - [ ] Updated `BlockByTimestamp` algo
   - [ ] Updated `SmartFilterLogs` algo
   - [ ] Transaction monitoring

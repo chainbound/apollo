@@ -427,7 +427,7 @@ func (c ChainService) HandleLog(log types.Log, chain apolloTypes.Chain, queryNam
 		return nil, fmt.Errorf("getting block header: %w", err)
 	}
 
-	c.logger.Trace().Str("event", event.Name_).Msg("handling log")
+	c.logger.Trace().Str("event", event.Name_).Uint64("block_number", log.BlockNumber).Msg("handling log")
 
 	outputs := make(map[string]any, len(event.Outputs_))
 
@@ -472,6 +472,7 @@ func (c ChainService) HandleLog(log types.Log, chain apolloTypes.Chain, queryNam
 		Type:            apolloTypes.Event,
 		Chain:           chain,
 		Identifier:      queryName,
+		EventName:       event.Name(),
 		ContractAddress: log.Address,
 		BlockNumber:     log.BlockNumber,
 		BlockHash:       log.BlockHash,
