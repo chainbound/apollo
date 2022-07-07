@@ -36,9 +36,15 @@ func BuildFlags(opts *types.ApolloOpts) []cli.Flag {
 		},
 		&cli.IntFlag{
 			Name:        "log-level",
-			Usage:       "log level from -1 to 5",
+			Usage:       "Log level from -1 to 5",
 			Destination: &opts.LogLevel,
 			Value:       1,
+		},
+		&cli.IntFlag{
+			Name:        "log-parts",
+			Usage:       "Amount of parts to filter logs in",
+			Destination: &opts.LogParts,
+			Value:       50,
 		},
 	}
 }

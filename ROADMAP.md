@@ -55,6 +55,13 @@
 
 - [ ] **v1.1.0-alpha**
   - [ ] Subcommand for getting ABIs from etherscan and the like
+  - [ ] Custom function definitions (like #DEFINE) that can be used elsewhere. Could be useful
+  	for defining a custom on-chain price method for example. It would be executed at the block
+	it gets called at.
+  - [ ] CLI options for
+	- [ ] log parts
+	- [ ] schema path
+	- [ ] output path
   - [ ] Updated `BlockByTimestamp` algo
   - [ ] Updated `SmartFilterLogs` algo
   - [ ] Transaction monitoring
@@ -65,7 +72,7 @@
       - Latency sensitive operations would probably also need different evaluation options. I think evaluating everything in the save block might take some time, would need to benchmark that. An option is to just not have a save block and stream everything as-is, let the application take care of decoding.
   - [ ] JSON output
   - [ ] Events: full transaction context (`tx_sender`, `tx_receiver`)
-  - [ ] Algorithm for determining `event` range (start big, if we get error, read range and modify)
+  - [x] Algorithm for determining `event` range (start big, if we get error, read range and modify)
   - [ ] Generalized SQL output (MySQL, SQL Server)
   - [ ] Aggregation operations like group by, sum, avg
   - [ ] Unverified methods and events

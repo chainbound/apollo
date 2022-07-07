@@ -45,9 +45,11 @@ type ChainService struct {
 
 	// processingTime is populated when the schema is completed.
 	processingTime time.Duration
+
+	logParts int
 }
 
-func NewChainService(defaultTimeout time.Duration, actionsPerSecond int, rpcs map[apolloTypes.Chain]string) *ChainService {
+func NewChainService(defaultTimeout time.Duration, actionsPerSecond, logParts int, rpcs map[apolloTypes.Chain]string) *ChainService {
 	return &ChainService{
 		defaultTimeout:   defaultTimeout,
 		actionsPerSecond: actionsPerSecond,
@@ -56,6 +58,7 @@ func NewChainService(defaultTimeout time.Duration, actionsPerSecond int, rpcs ma
 		blockDaters:      make(map[apolloTypes.Chain]BlockDater),
 		rateLimiter:      ratelimit.New(actionsPerSecond),
 		logger:           log.NewLogger("chainservice"),
+		logParts:         logParts,
 	}
 }
 
@@ -69,7 +72,7 @@ func (c *ChainService) Connect(ctx context.Context, chain apolloTypes.Chain) (*C
 
 	c.logger.Debug().Str("rpc", c.rpcs[chain]).Msg("connected to rpc")
 
-	c.clients[chain] = NewCachedClient(client)
+	c.clients[chain] = NewCachedClient(client, c.logParts)
 	c.blockDaters[chain] = NewBlockDater(client)
 	return c, nil
 }

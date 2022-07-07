@@ -25,6 +25,7 @@ type ApolloOpts struct {
 	RateLimit  int
 	Chain      string
 	LogLevel   int
+	LogParts   int
 }
 
 type ResultType int

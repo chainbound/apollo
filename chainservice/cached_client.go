@@ -24,6 +24,8 @@ type CachedClient struct {
 	subscribeRequests      uint64
 	filterRequests         uint64
 
+	logParts int
+
 	logger zerolog.Logger
 
 	// We use a cache here for caching requests.
@@ -37,7 +39,7 @@ type CachedClient struct {
 	cacheHits int64
 }
 
-func NewCachedClient(client *ethclient.Client) *CachedClient {
+func NewCachedClient(client *ethclient.Client, logParts int) *CachedClient {
 	cache, _ := lru.New(8192)
 	hc, _ := lru.New(8192)
 	return &CachedClient{
@@ -45,6 +47,7 @@ func NewCachedClient(client *ethclient.Client) *CachedClient {
 		cache:       cache,
 		headerCache: hc,
 		logger:      log.NewLogger("smart_client"),
+		logParts:    logParts,
 	}
 }
 
@@ -127,7 +130,7 @@ func (c *CachedClient) FilterLogs(ctx context.Context, query ethereum.FilterQuer
 func (c *CachedClient) SmartFilterLogs(ctx context.Context, addresses []common.Address, topics [][]common.Hash, fromBlock, toBlock *big.Int) ([]types.Log, error) {
 	var logs []types.Log
 
-	parts := int64(50)
+	parts := int64(c.logParts)
 	from := fromBlock.Int64()
 	to := toBlock.Int64()
 

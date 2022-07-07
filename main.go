@@ -137,7 +137,7 @@ func Run(opts types.ApolloOpts) error {
 
 	defaultTimeout := time.Second * 30
 
-	service := chainservice.NewChainService(defaultTimeout, opts.RateLimit, cfg.Rpc)
+	service := chainservice.NewChainService(defaultTimeout, opts.RateLimit, opts.LogParts, cfg.Rpc)
 	setupCloseHandler(service)
 
 	out := output.NewOutputHandler()
