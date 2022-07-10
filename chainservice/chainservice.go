@@ -242,7 +242,7 @@ func (c ChainService) SecondsToBlockInterval(ctx context.Context, chain apolloTy
 }
 
 func (c ChainService) Balance(chain apolloTypes.Chain, address common.Address, block *big.Int) (float64, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	rawInt, err := c.clients[chain].client.BalanceAt(ctx, address, block)
 	if err != nil {
@@ -259,7 +259,7 @@ func (c ChainService) Balance(chain apolloTypes.Chain, address common.Address, b
 }
 
 func (c ChainService) TokenBalance(chain apolloTypes.Chain, address, tokenAddress common.Address, block *big.Int) (float64, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	client := c.clients[chain].client
@@ -273,12 +273,12 @@ func (c ChainService) TokenBalance(chain apolloTypes.Chain, address, tokenAddres
 	rawDecimals, err := tokenCaller.Decimals(opts)
 	// rawInt, err := .BalanceAt(ctx, address, block)
 	if err != nil {
-		return 0, fmt.Errorf("reading erc20 decimals: %w", err)
+		return 0, fmt.Errorf("reading erc20 decimals (block: %d): %w", block, err)
 	}
 
 	rawInt, err := tokenCaller.BalanceOf(opts, address)
 	if err != nil {
-		return 0, fmt.Errorf("reading erc20 balanceOf: %w", err)
+		return 0, fmt.Errorf("reading erc20 balanceOf (block: %d): %w", block, err)
 	}
 
 	raw := new(big.Float).SetInt(rawInt)
