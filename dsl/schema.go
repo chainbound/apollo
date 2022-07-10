@@ -191,20 +191,20 @@ func (s *DynamicSchema) EvalSave(provider ChainFunctionProvider, res types.CallR
 				return nil, err
 			}
 
+			ok, err := s.EvalFilter(res.QueryName)
+			if err != nil {
+				return nil, err
+			}
+
+			if !ok {
+				return nil, nil
+			}
+
 			diags := gohcl.DecodeBody(q.Saves.Options, q.EvalContext, &outputs)
 			if diags.HasErrors() {
 				return nil, diags.Errs()[0]
 			}
 		}
-	}
-
-	ok, err := s.EvalFilter(res.QueryName)
-	if err != nil {
-		return nil, err
-	}
-
-	if !ok {
-		return nil, nil
 	}
 
 	return outputs, nil
